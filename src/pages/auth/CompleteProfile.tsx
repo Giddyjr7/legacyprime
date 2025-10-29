@@ -29,8 +29,10 @@ const CompleteProfile = () => {
       // clear pending state
       clearPending();
 
-      // redirect to dashboard (you said backend will protect /dashboard)
-      navigate("/dashboard");
+      // redirect to dashboard with welcome message
+      navigate("/dashboard", { 
+        state: { flashMessage: `Welcome ${firstName}! Your profile has been set up successfully.` }
+      });
     } catch (err) {
       console.error(err);
       alert("Failed to save profile");

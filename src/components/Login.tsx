@@ -8,10 +8,14 @@ import { Eye, EyeOff } from "lucide-react";
 const Login = () => {
   const navigate = useNavigate();
 
+  const [email, setEmail] = useState("");
+
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
     // ✅ Later replace with backend auth logic
-    navigate("/dashboard");
+    navigate("/dashboard", {
+      state: { flashMessage: `Welcome back ${email}!` }
+    });
   };
 
   const [showPassword, setShowPassword] = useState(false);
@@ -28,6 +32,8 @@ const Login = () => {
             <Input
               type="email"
               placeholder="Email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
               className="bg-input text-foreground border border-border"
               required
             />
