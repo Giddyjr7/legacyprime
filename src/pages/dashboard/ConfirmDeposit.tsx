@@ -1,6 +1,9 @@
 import { useLocation, useNavigate } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { ENDPOINTS } from "@/config/api";
+import { api } from "@/utils/api";
+import { useState } from "react";
 
 const ConfirmDeposit = () => {
   const location = useLocation();
@@ -12,6 +15,12 @@ const ConfirmDeposit = () => {
   const total = (parseFloat(amount) + fee).toFixed(2);
 
   const walletAddress = "bc1qcl84vkhs9aur0qcf02n8xfwk6pe95zrtq7f05w";
+
+  const [file, setFile] = useState<File | null>(null);
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) setFile(e.target.files[0]);
+  };
 
   return (
     <div className="p-6">
@@ -46,6 +55,7 @@ const ConfirmDeposit = () => {
               type="file"
               accept=".jpg,.jpeg,.png,.pdf"
               className="block w-full border border-border rounded-lg p-2 bg-background"
+              onChange={handleFileChange}
             />
             <p className="text-xs text-muted-foreground">
               Supported formats: jpg, jpeg, png, pdf
@@ -53,11 +63,55 @@ const ConfirmDeposit = () => {
           </div>
 
           <Button
-            onClick={() => {
-              // In future, you can call payment API then redirect on success
-              navigate('/dashboard', {
-                state: { flashMessage: 'Your deposit is being processed and will be approved shortly' }
-              });
+            onClick={async () => {
+              try {
+                const fd = new FormData();
+                fd.append('amount', String(amount));
+                fd.append('method', String((location.state || {}).method || ''));
+                if (file) fd.append('proof_image', file);
+
+                // Ensure csrftoken cookie exists. If missing, call a lightweight endpoint
+                // that sets the cookie via ensure_csrf_cookie.
+                const getCsrfFromCookie = () => {
+                  return document.cookie.split(';').map(c => c.trim()).find(c => c.startsWith('csrftoken='))?.split('=')[1];
+                };
+
+                let csrf = getCsrfFromCookie();
+                if (!csrf) {
+                  // Request the CSRF cookie from the backend
+                  await fetch(ENDPOINTS.CSRF, {
+                    method: 'GET',
+                    credentials: 'include',
+                    mode: 'cors'
+                  });
+                  csrf = getCsrfFromCookie();
+                }
+
+                // Use fetch directly to handle multipart and include credentials
+                const res = await fetch(ENDPOINTS.WALLET_DEPOSIT_REQUEST, {
+                  method: 'POST',
+                  body: fd,
+                  credentials: 'include',
+                  headers: {
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'X-CSRFToken': csrf || ''
+                  }
+                });
+
+                if (!res.ok) {
+                  const err = await res.json().catch(() => ({ message: 'Unknown error' }));
+                  alert(err.message || 'Failed to submit deposit');
+                  return;
+                }
+
+                const data = await res.json();
+                navigate('/dashboard', {
+                  state: { flashMessage: 'Your deposit is being processed and will be approved shortly' }
+                });
+              } catch (err) {
+                console.error('Deposit submit error', err);
+                alert('Failed to submit deposit');
+              }
             }}
             className="w-full bg-primary hover:opacity-90 text-primary-foreground rounded-xl"
           >

@@ -1,5 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { api } from "@/utils/api";
+import { ENDPOINTS } from "@/config/api";
 
 export default function Withdraw() {
   const [selectedMethod, setSelectedMethod] = useState("");
@@ -90,11 +92,20 @@ export default function Withdraw() {
 
           {/* Confirm Button */}
           <button
-            onClick={() => {
-              // In future, trigger withdraw API here then redirect
-              navigate('/dashboard', {
-                state: { flashMessage: 'Your withdrawal is being processed and will be confirmed shortly.' }
-              });
+            onClick={async () => {
+              if (!selectedMethod || !amount) return;
+              try {
+                await api.post(ENDPOINTS.WALLET_WITHDRAW, {
+                  amount: Number(amount),
+                  withdrawal_address: selectedMethod,
+                });
+                navigate('/dashboard', {
+                  state: { flashMessage: 'Your withdrawal is being processed and will be confirmed shortly.' }
+                });
+              } catch (err) {
+                console.error('Withdraw error', err);
+                alert('Failed to create withdrawal');
+              }
             }}
             disabled={!selectedMethod || !amount}
             className={`w-full rounded-lg px-4 py-2 font-medium text-primary-foreground ${!selectedMethod || !amount ? 'bg-muted cursor-not-allowed opacity-60' : 'bg-primary hover:opacity-90'}`}

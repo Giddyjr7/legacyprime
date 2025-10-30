@@ -1,7 +1,9 @@
 import { ArrowDownCircle, ArrowUpCircle, Clock, PlusCircle } from "lucide-react";
 
 import { useLocation, Link } from "react-router-dom";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { api } from "@/utils/api";
+import { ENDPOINTS } from "@/config/api";
 import FlashMessage from "@/components/FlashMessage";
 import { Line } from 'react-chartjs-2';
 import {
@@ -14,12 +16,15 @@ import {
   Tooltip,
   Legend,
 } from 'chart.js';
+import { Filler } from 'chart.js';
+import { useAuth } from '@/context/AuthContext';
 
 ChartJS.register(
   CategoryScale,
   LinearScale,
   PointElement,
   LineElement,
+  Filler,
   Title,
   Tooltip,
   Legend
@@ -28,6 +33,45 @@ ChartJS.register(
 export default function Overview() {
   const location = useLocation();
   const [flash, setFlash] = useState<string | null>(() => (location.state as any)?.flashMessage ?? null);
+  const [summary, setSummary] = useState<any>(null);
+  const [performance, setPerformance] = useState<any>(null);
+  const [transactions, setTransactions] = useState<{deposits:any[]; withdrawals:any[]}>({deposits:[], withdrawals:[]});
+
+  const { isAuthenticated, isLoading } = useAuth();
+
+  useEffect(() => {
+    if (isLoading) return; // wait for auth check
+    if (!isAuthenticated) {
+      // user not logged in — skip loading protected data
+      setSummary(null);
+      setPerformance(null);
+      setTransactions({ deposits: [], withdrawals: [] });
+      return;
+    }
+
+    const load = async () => {
+      try {
+        const s = await api.get(ENDPOINTS.DASHBOARD_SUMMARY);
+        setSummary(s);
+      } catch (err) {
+        console.error('Failed loading summary', err);
+      }
+      try {
+        const p = await api.get(ENDPOINTS.DASHBOARD_PERFORMANCE);
+        setPerformance(p);
+      } catch (err) {
+        console.error('Failed loading performance', err);
+      }
+      try {
+        const t = await api.get(`${ENDPOINTS.TRANSACTIONS}`);
+        // API returns {deposits, withdrawals}
+        setTransactions(t as any);
+      } catch (err) {
+        console.error('Failed loading transactions', err);
+      }
+    };
+    load();
+  }, [isAuthenticated, isLoading]);
   return (
     <>
       {flash && <FlashMessage message={flash} onClose={() => setFlash(null)} />}
@@ -43,26 +87,26 @@ export default function Overview() {
       </div>
 
       {/* Summary Cards */}
-      <div className="grid gap-4 md:grid-cols-5">
+          <div className="grid gap-4 md:grid-cols-5">
         <div className="rounded-xl border border-border bg-card p-4">
           <h2 className="text-sm font-medium text-muted-foreground">Total Balance</h2>
-          <p className="mt-2 text-2xl font-bold text-primary">$12,540</p>
+          <p className="mt-2 text-2xl font-bold text-primary">{summary ? `$${Number(summary.total_balance).toLocaleString()}` : '$—'}</p>
         </div>
         <div className="rounded-xl border border-border bg-card p-4">
           <h2 className="text-sm font-medium text-muted-foreground">Pending Deposit</h2>
-          <p className="mt-2 text-2xl font-bold">5</p>
+          <p className="mt-2 text-2xl font-bold">{transactions.deposits.filter(d=>d.status==='pending').length}</p>
         </div>
         <div className="rounded-xl border border-border bg-card p-4">
           <h2 className="text-sm font-medium text-muted-foreground">Pending Withdrawals</h2>
-          <p className="mt-2 text-2xl font-bold text-destructive">3</p>
+          <p className="mt-2 text-2xl font-bold text-destructive">{transactions.withdrawals.filter(w=>w.status==='pending').length}</p>
         </div>
         <div className="rounded-xl border border-border bg-card p-4">
           <h2 className="text-sm font-medium text-muted-foreground">Total Deposits</h2>
-          <p className="mt-2 text-2xl font-bold text-green-500">$8,400</p>
+          <p className="mt-2 text-2xl font-bold text-green-500">{summary ? `$${Number(summary.total_deposits).toLocaleString()}` : '$—'}</p>
         </div>
         <div className="rounded-xl border border-border bg-card p-4">
           <h2 className="text-sm font-medium text-muted-foreground">Total Withdrawals</h2>
-          <p className="mt-2 text-2xl font-bold text-blue-500">$4,600</p>
+          <p className="mt-2 text-2xl font-bold text-blue-500">{summary ? `$${Number(summary.total_withdrawals).toLocaleString()}` : '$—'}</p>
         </div>
       </div>
 
@@ -93,24 +137,17 @@ export default function Overview() {
               </tr>
             </thead>
             <tbody>
-              <tr className="border-b border-border">
-                <td className="py-2">Deposit</td>
-                <td className="py-2">Sep 20, 2025</td>
-                <td className="py-2 text-green-500">Completed</td>
-                <td className="py-2 text-right">$500</td>
-              </tr>
-              <tr className="border-b border-border">
-                <td className="py-2">Withdrawal</td>
-                <td className="py-2">Sep 18, 2025</td>
-                <td className="py-2 text-yellow-500">Pending</td>
-                <td className="py-2 text-right">$200</td>
-              </tr>
-              <tr>
-                <td className="py-2">Deposit</td>
-                <td className="py-2">Sep 15, 2025</td>
-                <td className="py-2 text-green-500">Completed</td>
-                <td className="py-2 text-right">$1,000</td>
-              </tr>
+              {[
+                ...transactions.deposits.slice(0,3).map(d=>({type:'Deposit', date:d.created_at, status:d.status, amount:d.amount})),
+                ...transactions.withdrawals.slice(0,3).map(w=>({type:'Withdrawal', date:w.created_at, status:w.status, amount:w.amount})),
+              ].slice(0,3).map((row, idx)=> (
+                <tr key={idx} className="border-b border-border">
+                  <td className="py-2">{row.type}</td>
+                  <td className="py-2">{new Date(row.date).toLocaleDateString()}</td>
+                  <td className={`py-2 ${row.status==='approved' ? 'text-green-500' : row.status==='pending' ? 'text-yellow-500' : ''}`}>{row.status}</td>
+                  <td className="py-2 text-right">${Number(row.amount).toLocaleString()}</td>
+                </tr>
+              ))}
             </tbody>
           </table>
         </div>
@@ -129,7 +166,7 @@ export default function Overview() {
               datasets: [
                 {
                   label: 'Deposits',
-                  data: [1200, 1500, 1100, 1800, 1700, 2000, 2200, 2100, 1900, 2300, 2500, 2400],
+                  data: performance ? performance.deposits.map((p:any)=>Number(p.total)) : [1200, 1500, 1100, 1800, 1700, 2000, 2200, 2100, 1900, 2300, 2500, 2400],
                   borderColor: 'rgb(34,197,94)',
                   backgroundColor: 'rgba(34,197,94,0.15)',
                   borderWidth: 3,
@@ -139,7 +176,7 @@ export default function Overview() {
                 },
                 {
                   label: 'Withdrawals',
-                  data: [800, 900, 700, 1200, 1000, 1300, 1400, 1200, 1100, 1500, 1600, 1550],
+                  data: performance ? performance.withdrawals.map((p:any)=>Number(p.total)) : [800, 900, 700, 1200, 1000, 1300, 1400, 1200, 1100, 1500, 1600, 1550],
                   borderColor: 'rgb(59,130,246)',
                   backgroundColor: 'rgba(59,130,246,0.15)',
                   borderWidth: 3,

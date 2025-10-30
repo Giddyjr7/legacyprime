@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { useNavigate, Link, Outlet, useLocation } from "react-router-dom";
+import { useAuth } from "@/context/AuthContext";
 import {
   LayoutDashboard,
   ArrowDownCircle,
@@ -15,14 +16,7 @@ export default function DashboardLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
-  
-  // Temporary static user data until auth is implemented
-  const user = {
-    username: 'Giddy',
-    profile: {
-      firstName: 'Giddy'
-    }
-  };
+  const { user, logout } = useAuth();
 
   // normalize user properties coming from backend or previous frontend shape
   const displayName: string =
@@ -160,10 +154,14 @@ export default function DashboardLayout() {
                 </Link>
                 <button
                   className="block w-full text-left px-4 py-2 text-sm hover:bg-muted transition-colors text-destructive"
-                  onClick={() => {
+                  onClick={async () => {
                     setDropdownOpen(false);
-                    // Temporary logout until auth is implemented
-                    navigate('/');
+                    try {
+                      await logout();
+                      navigate('/');
+                    } catch (error) {
+                      console.error('Logout failed:', error);
+                    }
                   }}
                 >
                   Logout

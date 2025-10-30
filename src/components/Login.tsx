@@ -4,18 +4,38 @@ import { Input } from "@/components/ui/input"
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from "@/components/ui/card"
 import { Link, useNavigate } from "react-router-dom"
 import { Eye, EyeOff } from "lucide-react";
+import { useAuth } from "@/context/AuthContext";
+import { useToast } from "@/hooks/use-toast";
 
 const Login = () => {
   const navigate = useNavigate();
-
+  const { login } = useAuth();
+  const { toast } = useToast();
+  
   const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    // ✅ Later replace with backend auth logic
-    navigate("/dashboard", {
-      state: { flashMessage: `Welcome back ${email}!` }
-    });
+    setLoading(true);
+    
+    try {
+      await login(email, password);
+      toast({
+        title: "Success",
+        description: `Welcome back ${email}!`,
+      });
+      navigate("/dashboard");
+    } catch (error) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error instanceof Error ? error.message : "Login failed",
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
   const [showPassword, setShowPassword] = useState(false);
@@ -41,6 +61,8 @@ const Login = () => {
               <Input
                 type={showPassword ? "text" : "password"}
                 placeholder="Password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
                 className="bg-input text-foreground border border-border"
                 required
               />
@@ -67,8 +89,9 @@ const Login = () => {
             <Button
               type="submit"
               className="w-full bg-primary text-primary-foreground hover:bg-primary/80"
+              disabled={loading}
             >
-              Login
+              {loading ? "Logging in..." : "Login"}
             </Button>
           </form>
         </CardContent>

@@ -1,0 +1,9 @@
+Django>=4.2
+djangorestframework
+django-cors-headers
+python-dotenv
+Pillow
+
+# Optional (for type hints / dev)
+# pip install these in your venv if needed
+# psycopg2-binary

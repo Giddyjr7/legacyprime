@@ -1,16 +1,32 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { useAuthContext } from "@/context/AuthContext";
+import { useAuth } from "@/context/AuthContext";
+import { useToast } from "@/hooks/use-toast";
+import { api } from "@/utils/api";
+import { ENDPOINTS } from "@/config/api";
 
 const CompleteProfile = () => {
   const navigate = useNavigate();
-  const { pendingEmail, clearPending } = useAuthContext();
+  const { user, isLoading } = useAuth();
+  const { toast } = useToast();
 
-  const [firstName, setFirstName] = useState("");
-  const [lastName, setLastName] = useState("");
+  useEffect(() => {
+    // If no user and not loading, redirect to login
+    if (!isLoading && !user) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Please log in to continue"
+      });
+      navigate("/login");
+    }
+  }, [user, isLoading, navigate, toast]);
+
+  const [firstName, setFirstName] = useState(user?.first_name || "");
+  const [lastName, setLastName] = useState(user?.last_name || "");
   const [address, setAddress] = useState("");
   const [stateVal, setStateVal] = useState("");
   const [zipCode, setZipCode] = useState("");
@@ -22,20 +38,47 @@ const CompleteProfile = () => {
     e.preventDefault();
     setLoading(true);
     try {
-      // TODO: call backend API to save profile linked to the pending account
-      // e.g. await api.completeProfile({ email: pendingEmail, firstName,... })
-      await new Promise((r) => setTimeout(r, 1000)); // simulate
-
-      // clear pending state
-      clearPending();
-
-      // redirect to dashboard with welcome message
-      navigate("/dashboard", { 
-        state: { flashMessage: `Welcome ${firstName}! Your profile has been set up successfully.` }
+      console.log('Submitting profile update...');
+      const response = await api.put(ENDPOINTS.PROFILE, {
+        first_name: firstName,
+        last_name: lastName,
+        address,
+        state: stateVal,
+        zip_code: zipCode,
+        city,
+        country
       });
-    } catch (err) {
-      console.error(err);
-      alert("Failed to save profile");
+      
+      console.log('Profile update response:', response);
+
+      toast({
+        title: "Success",
+        description: "Profile updated successfully"
+      });
+
+      navigate("/dashboard");
+    } catch (error) {
+      console.error('Profile update error:', error);
+      
+      // Check for specific error types
+      if (error instanceof Error) {
+        if (error.message.includes('Authentication credentials were not provided')) {
+          // Try to refresh the page to restore session
+          window.location.reload();
+          return;
+        }
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: error.message
+        });
+      } else {
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: "Failed to update profile. Please try again."
+        });
+      }
     } finally {
       setLoading(false);
     }
@@ -50,7 +93,7 @@ const CompleteProfile = () => {
 
         <CardContent>
           <p className="text-sm text-muted-foreground mb-4 text-center">
-            Complete your profile to finish setting up your account. Email: <strong>{pendingEmail ?? "—"}</strong>
+            Complete your profile information. Email: <strong>{user?.email ?? "—"}</strong>
           </p>
 
           <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-4">

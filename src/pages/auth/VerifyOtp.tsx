@@ -1,44 +1,68 @@
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { useAuthContext } from "@/context/AuthContext";
+import { useAuth } from "@/context/AuthContext";
+import { useToast } from "@/hooks/use-toast";
+import { api } from "@/utils/api";
+import { ENDPOINTS } from "@/config/api";
 
 const VerifyOtp = () => {
-  const { pendingEmail, setPendingEmail } = useAuthContext();
+  const location = useLocation();
   const navigate = useNavigate();
+  const { toast } = useToast();
+  const [email, setEmail] = useState<string>("");
   const [otp, setOtp] = useState("");
   const [loading, setLoading] = useState(false);
   const [resendLoading, setResendLoading] = useState(false);
   const [resendMessage, setResendMessage] = useState<string | null>(null);
 
-  // if no pending email, send user back to signup
-  if (!pendingEmail) {
-    // optional: you could navigate back to signup automatically
-  }
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const emailParam = params.get('email');
+    if (emailParam) {
+      setEmail(emailParam);
+    } else {
+      navigate('/login');
+    }
+  }, [location, navigate]);
 
   const handleVerify = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!email) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "No email found. Please start the verification process again."
+      });
+      return;
+    }
+
     setLoading(true);
     try {
-      // TODO: POST to backend verify endpoint with { email: pendingEmail, otp }
-      await new Promise((r) => setTimeout(r, 1000)); // simulate
+      await api.post(ENDPOINTS.VERIFY_OTP, { email, otp });
+      
+      toast({
+        title: "Success",
+        description: "Email verified successfully!"
+      });
 
-      // clear pendingEmail if you want (we'll keep it available for complete-profile if needed)
-      // setPendingEmail(null);
-
-      // on success, go to complete profile
+      // Redirect to complete profile or dashboard
       navigate("/complete-profile");
-    } catch (err) {
-      alert("OTP verification failed");
+    } catch (error) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error instanceof Error ? error.message : "OTP verification failed"
+      });
     } finally {
       setLoading(false);
     }
   };
 
   const handleResend = async () => {
-    if (!pendingEmail) {
+    if (!email) {
       setResendMessage("No email available to resend OTP to.");
       return;
     }
@@ -46,12 +70,20 @@ const VerifyOtp = () => {
     setResendMessage(null);
     setResendLoading(true);
     try {
-      // TODO: Replace with real API call when backend is ready, e.g.
-      // await fetch(`${API_URL}/auth/resend-otp`, { method: 'POST', body: JSON.stringify({ email: pendingEmail }) })
-      await new Promise((r) => setTimeout(r, 1000)); // simulate network
-      setResendMessage(`OTP resent to ${pendingEmail}`);
-    } catch (err) {
-      setResendMessage("Failed to resend OTP. Please try again.");
+      await api.post(ENDPOINTS.RESEND_OTP, { email });
+      setResendMessage(`OTP resent to ${email}`);
+      toast({
+        title: "Success",
+        description: "OTP has been resent to your email"
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to resend OTP";
+      setResendMessage(message);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: message
+      });
     } finally {
       setResendLoading(false);
     }
@@ -66,7 +98,7 @@ const VerifyOtp = () => {
 
         <CardContent className="space-y-4">
           <p className="text-sm text-muted-foreground text-center">
-            We sent a 6-digit code to <strong>{pendingEmail ?? "your email"}</strong>. Enter it below.
+            We sent a 6-digit code to <strong>{email || "your email"}</strong>. Enter it below.
           </p>
 
           <form onSubmit={handleVerify} className="space-y-4">

@@ -1,5 +1,8 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Search, ArrowUpDown } from 'lucide-react';
+import { api, APIError } from '@/utils/api';
+import { ENDPOINTS } from '@/config/api';
+import { useAuth } from '@/context/AuthContext';
 
 interface Transaction {
   id: string;
@@ -12,43 +15,89 @@ interface Transaction {
   created_at: string;
 }
 
-const staticTransactions: Transaction[] = [
-  {
-    id: '1',
-    reference: 'REF123',
-    transaction_type: 'deposit',
-    transaction_type_display: 'Deposit',
-    amount: '100.00',
-    status: 'successful',
-    status_display: 'Successful',
-    created_at: '2025-10-28T12:00:00Z',
-  },
-  {
-    id: '2',
-    reference: 'REF124',
-    transaction_type: 'withdrawal',
-    transaction_type_display: 'Withdrawal',
-    amount: '50.00',
-    status: 'pending',
-    status_display: 'Pending',
-    created_at: '2025-10-28T13:00:00Z',
-  },
-  // Add more static transactions as needed
-];
-
 export default function Transactions() {
-  const transactions = staticTransactions;
+  const { isAuthenticated, isLoading: authLoading } = useAuth();
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState('all');
   const [sortOrder, setSortOrder] = useState('newest');
 
   const filteredTransactions = useMemo(() => {
-    return transactions.filter(tx => {
-      const matchesSearch = tx.reference.toLowerCase().includes(search.toLowerCase());
+    const filtered = transactions.filter(tx => {
+      const matchesSearch = tx.reference?.toLowerCase().includes(search.toLowerCase());
       const matchesType = typeFilter === 'all' || tx.transaction_type === typeFilter;
       return matchesSearch && matchesType;
     });
-  }, [transactions, search, typeFilter]);
+
+    const sorted = filtered.sort((a, b) => {
+      const ta = new Date(a.created_at).getTime();
+      const tb = new Date(b.created_at).getTime();
+      return sortOrder === 'newest' ? tb - ta : ta - tb;
+    });
+
+    return sorted;
+  }, [transactions, search, typeFilter, sortOrder]);
+
+  // Fetch transactions when authenticated
+  useEffect(() => {
+    if (authLoading) return; // wait for auth check
+    if (!isAuthenticated) {
+      setTransactions([]);
+      return;
+    }
+
+    let mounted = true;
+    const load = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const res = await api.get<any>(ENDPOINTS.TRANSACTIONS);
+
+        // Backend may return {deposits: [], withdrawals: []} or a flat array
+        let items: any[] = [];
+        if (res && Array.isArray(res)) {
+          items = res;
+        } else if (res && (res.deposits || res.withdrawals)) {
+          const deps = res.deposits || [];
+          const wds = res.withdrawals || [];
+          // normalize and combine
+          items = [
+            ...deps.map((i: any) => ({ ...i, transaction_type: 'deposit' })),
+            ...wds.map((i: any) => ({ ...i, transaction_type: 'withdrawal' })),
+          ];
+        } else if (res && res.results && Array.isArray(res.results)) {
+          items = res.results;
+        }
+
+        const normalized: Transaction[] = items.map((it: any) => ({
+          id: String(it.id ?? it.pk ?? it.reference ?? Math.random()),
+          reference: it.reference ?? String(it.id ?? ''),
+          transaction_type: it.transaction_type ?? (it.type ?? 'deposit'),
+          transaction_type_display: it.transaction_type_display ?? (it.transaction_type ? (it.transaction_type.charAt(0).toUpperCase() + it.transaction_type.slice(1)) : (it.type ?? '')),
+          amount: String(it.amount ?? it.total ?? it.value ?? 0),
+          status: it.status ?? (it.state ?? 'unknown'),
+          status_display: it.status_display ?? (it.status ? (it.status.charAt(0).toUpperCase() + it.status.slice(1)) : ''),
+          created_at: it.created_at ?? it.created ?? it.timestamp ?? new Date().toISOString(),
+        }));
+
+        if (mounted) setTransactions(normalized);
+      } catch (err) {
+        console.error('Failed to load transactions', err);
+        const msg = err instanceof APIError ? err.message : 'Could not load transactions';
+        if (mounted) setError(msg);
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    };
+
+    load();
+
+    return () => {
+      mounted = false;
+    };
+  }, [isAuthenticated, authLoading]);
 
   return (
     <div className="space-y-6 p-4 md:p-6">
@@ -88,9 +137,19 @@ export default function Transactions() {
         </select>
       </div>
 
-      {/* Results count */}
+      {/* Results count / status */}
       <div className="text-sm text-muted-foreground">
-        Showing {filteredTransactions.length} transaction{filteredTransactions.length !== 1 && 's'}
+        {authLoading ? (
+          'Checking authentication...'
+        ) : !isAuthenticated ? (
+          'Please log in to view your transactions.'
+        ) : loading ? (
+          'Loading transactions...'
+        ) : error ? (
+          `Error: ${error}`
+        ) : (
+          <>Showing {filteredTransactions.length} transaction{filteredTransactions.length !== 1 && 's'}</>
+        )}
       </div>
 
       {/* Transactions Table */}

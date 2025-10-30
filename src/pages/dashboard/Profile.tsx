@@ -1,18 +1,20 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { api } from "@/utils/api";
+import { ENDPOINTS } from "@/config/api";
 import { Camera } from "lucide-react";
 
 export default function Profile() {
   const [profile, setProfile] = useState({
-    firstName: "Gideon",
-    lastName: "Divine Mene",
-    email: "menegideon84@gmail.com",
-    mobile: "09063979730",
-    address: "4 atai street, use offot",
-    state: "Akwa-ibom",
-    zipCode: "520101",
-    city: "uyo",
-    country: "Nigeria",
+    firstName: "",
+    lastName: "",
+    email: "",
+    mobile: "",
+    address: "",
+    state: "",
+    zipCode: "",
+    city: "",
+    country: "",
   });
 
   const [image, setImage] = useState<string | null>(null);
@@ -35,10 +37,47 @@ export default function Profile() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    console.log("Updated profile:", profile);
-    // After saving (mock), redirect to dashboard with a flash message
-    navigate('/dashboard', { state: { flashMessage: 'Your Profile has been updated sucessfully' } });
+    // call API to update profile
+    (async () => {
+      try {
+        const body = {
+          first_name: profile.firstName,
+          last_name: profile.lastName,
+          address: profile.address,
+          state: profile.state,
+          zip_code: profile.zipCode,
+          city: profile.city,
+          country: profile.country,
+        };
+        await api.put(ENDPOINTS.PROFILE, body);
+        navigate('/dashboard', { state: { flashMessage: 'Your Profile has been updated successfully' } });
+      } catch (err) {
+        console.error('Profile update error', err);
+        alert('Failed to update profile');
+      }
+    })();
   };
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const data = await api.get(ENDPOINTS.PROFILE);
+        setProfile({
+          firstName: data.first_name || '',
+          lastName: data.last_name || '',
+          email: data.email || '',
+          mobile: (data as any).mobile || '',
+          address: (data as any).address || '',
+          state: (data as any).state || '',
+          zipCode: (data as any).zip_code || '',
+          city: (data as any).city || '',
+          country: (data as any).country || '',
+        });
+      } catch (err) {
+        console.error('Failed to load profile', err);
+      }
+    })();
+  }, []);
 
   return (
     <div className="p-6">
