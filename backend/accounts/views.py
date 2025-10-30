@@ -287,6 +287,46 @@ class VerifyOTPView(APIView):
                 "message": "OTP not found or already used"
             }, status=status.HTTP_400_BAD_REQUEST)
 
+
+class PasswordResetOTPView(APIView):
+    """Send an OTP to an existing user's email for password reset."""
+    permission_classes = (permissions.AllowAny,)
+
+    def post(self, request):
+        email = request.data.get('email')
+        if not email:
+            return Response({"message": "Email is required"}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            user = User.objects.get(email=email)
+        except User.DoesNotExist:
+            return Response({"message": "No account found with that email"}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Generate OTP
+        otp_instance = OTP.generate_otp(email)
+
+        # Send OTP via email
+        subject = f"{settings.PROJECT_NAME} - Password Reset Code"
+        context = {
+            'project_name': settings.PROJECT_NAME,
+            'otp_code': otp_instance.otp
+        }
+        html_message = render_to_string('notifications/otp_email.html', context)
+
+        try:
+            email_message = EmailMessage(
+                subject,
+                html_message,
+                f'{settings.PROJECT_NAME} <{settings.EMAIL_HOST_USER}>',
+                [email]
+            )
+            email_message.content_subtype = 'html'
+            email_message.send(fail_silently=False)
+            return Response({"message": "OTP sent to your email"}, status=status.HTTP_200_OK)
+        except Exception as e:
+            print('Error sending password reset email:', str(e))
+            return Response({"message": "Error sending email", "error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
 class ResendOTPView(APIView):
     permission_classes = (permissions.AllowAny,)
 
