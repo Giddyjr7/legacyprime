@@ -5,6 +5,9 @@ from .serializers import DepositSerializer, WithdrawalSerializer
 from .models import Deposit, Withdrawal
 from django.db import models
 from django.shortcuts import get_object_or_404
+from itertools import chain
+from operator import attrgetter
+from rest_framework.pagination import PageNumberPagination
 
 
 class CreateDepositView(APIView):
@@ -71,6 +74,56 @@ class DashboardSummaryView(APIView):
             'total_withdrawals': total_withdrawals,
         })
 
+
+class TransactionPagination(PageNumberPagination):
+    page_size = 20
+    page_size_query_param = 'page_size'
+    max_page_size = 100
+
+class TransactionHistoryView(APIView):
+    permission_classes = (permissions.IsAuthenticated,)
+    pagination_class = TransactionPagination
+
+    def get(self, request):
+        # Get all transactions for the user
+        deposits = Deposit.objects.filter(user=request.user)
+        withdrawals = Withdrawal.objects.filter(user=request.user)
+
+        # Apply filters if provided
+        status_filter = request.query_params.get('status')
+        if status_filter:
+            deposits = deposits.filter(status=status_filter)
+            withdrawals = withdrawals.filter(status=status_filter)
+
+        # Convert querysets to lists and add transaction type
+        deposit_list = [{
+            'id': d.id,
+            'amount': d.amount,
+            'type': 'DEPOSIT',
+            'status': d.status,
+            'date': d.created_at,
+            'method': d.method,
+            'proof_image': d.proof_image.url if d.proof_image else None
+        } for d in deposits]
+
+        withdrawal_list = [{
+            'id': w.id,
+            'amount': w.amount,
+            'type': 'WITHDRAWAL',
+            'status': w.status,
+            'date': w.created_at,
+            'withdrawal_address': w.withdrawal_address
+        } for w in withdrawals]
+
+        # Combine and sort by date
+        all_transactions = deposit_list + withdrawal_list
+        all_transactions.sort(key=lambda x: x['date'], reverse=True)
+
+        # Apply pagination
+        paginator = self.pagination_class()
+        paginated_transactions = paginator.paginate_queryset(all_transactions, request)
+
+        return paginator.get_paginated_response(paginated_transactions)
 
 class DashboardPerformanceView(APIView):
     permission_classes = (permissions.IsAuthenticated,)

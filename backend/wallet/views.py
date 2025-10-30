@@ -16,12 +16,38 @@ class DepositRequestView(APIView):
     parser_classes = (MultiPartParser, FormParser)
 
     def post(self, request):
-        data = request.data.copy()
-        # allow file upload via 'proof_image'
-        serializer = DepositSerializer(data=data)
+        # Handle the multipart form data
+        amount = request.data.get('amount')
+        method = request.data.get('method')
+        proof_image = request.FILES.get('proof_image')
+        
+        # Validate required fields
+        if not amount:
+            return Response({"error": "Amount is required"}, status=status.HTTP_400_BAD_REQUEST)
+        if not method:
+            return Response({"error": "Payment method is required"}, status=status.HTTP_400_BAD_REQUEST)
+        if not proof_image:
+            return Response({"error": "Proof of payment is required"}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Validate file type
+        allowed_types = ['image/jpeg', 'image/png', 'application/pdf']
+        if hasattr(proof_image, 'content_type') and proof_image.content_type not in allowed_types:
+            return Response(
+                {"error": "Invalid file type. Only JPG, PNG and PDF are allowed"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Create deposit with the file
+        serializer = DepositSerializer(data={
+            'amount': amount,
+            'method': method,
+            'proof_image': proof_image
+        })
+
         if serializer.is_valid():
             serializer.save(user=request.user)
             return Response(serializer.data, status=status.HTTP_201_CREATED)
+        
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
