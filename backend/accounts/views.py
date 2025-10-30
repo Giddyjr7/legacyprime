@@ -1,5 +1,5 @@
 from django.contrib.auth import login, logout, authenticate, get_user_model
-from rest_framework import status, permissions
+from rest_framework import status, permissions, parsers
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from django.views.decorators.csrf import ensure_csrf_cookie
@@ -8,7 +8,7 @@ from django.core.mail import EmailMessage
 from django.conf import settings
 from django.template.loader import render_to_string
 from .models import OTP
-from .serializers import RegisterSerializer, LoginSerializer, UserSerializer
+from .serializers import RegisterSerializer, LoginSerializer, UserSerializer, UserProfileSerializer, ChangePasswordSerializer
 
 User = get_user_model()
 
@@ -188,23 +188,37 @@ class LogoutView(APIView):
         return Response({"message": "Successfully Logged out"})
 
 class ProfileView(APIView):
+    """API View to handle user profile operations including profile picture upload."""
     permission_classes = (permissions.IsAuthenticated,)
+    parser_classes = (parsers.MultiPartParser, parsers.FormParser, parsers.JSONParser)
 
     def get(self, request):
-        serializer = UserSerializer(request.user)
+        """Get the user's profile data including profile picture URL."""
+        serializer = UserProfileSerializer(request.user)
         return Response(serializer.data)
 
     def put(self, request):
-        print("Profile update request:", request.data)  # Debug print
-        print("User:", request.user)  # Debug print
-        print("Auth:", request.auth)  # Debug print
-        
-        serializer = UserSerializer(request.user, data=request.data, partial=True)
+        """Update the user's profile data. Handles both JSON and multipart form data."""
+        print("Profile update request:", request.data)
+
+        # Use partial=True to allow partial updates
+        serializer = UserProfileSerializer(
+            request.user,
+            data=request.data,
+            partial=True
+        )
+
         if serializer.is_valid():
             user = serializer.save()
-            return Response(UserSerializer(user).data)
-        print("Validation errors:", serializer.errors)  # Debug print
+            # Return the updated profile data
+            return Response(UserProfileSerializer(user).data)
+            
+        print("Validation errors:", serializer.errors)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    def patch(self, request):
+        """Handle partial updates. Uses same logic as PUT."""
+        return self.put(request)
 
 class VerifyOTPView(APIView):
     permission_classes = (permissions.AllowAny,)
@@ -326,6 +340,51 @@ class ResendOTPView(APIView):
                 "message": "Error sending verification email",
                 "error": str(e)
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class ChangePasswordView(APIView):
+    """Allow an authenticated user to change their password.
+
+    Expected JSON:
+    {
+      "current_password": "...",
+      "new_password": "...",
+      "confirm_password": "..."
+    }
+    """
+    permission_classes = (permissions.IsAuthenticated,)
+
+    def post(self, request):
+        serializer = ChangePasswordSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        user = request.user
+        current = serializer.validated_data.get('current_password')
+        new_password = serializer.validated_data.get('new_password')
+
+        # Verify current password
+        if not user.check_password(current):
+            return Response({"current_password": ["Current password is incorrect."]}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Additional password validation (validators run via serializer, but re-run to be explicit)
+        try:
+            from django.contrib.auth.password_validation import validate_password
+            validate_password(new_password, user)
+        except Exception as e:
+            # e may be a ValidationError with messages
+            try:
+                return Response({"new_password": e.messages}, status=status.HTTP_400_BAD_REQUEST)
+            except Exception:
+                return Response({"new_password": [str(e)]}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Set the new password
+        user.set_password(new_password)
+        user.save()
+
+        # Keep the user logged in: do not log them out or invalidate tokens here.
+        # The password has been set and saved above.
+        return Response({"detail": "Password updated successfully."}, status=status.HTTP_200_OK)
 
 
 @method_decorator(ensure_csrf_cookie, name='dispatch')
