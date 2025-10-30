@@ -395,8 +395,11 @@ class ChangePasswordView(APIView):
     permission_classes = (permissions.IsAuthenticated,)
 
     def post(self, request):
+        print("Change password request data:", request.data)  # Debug log
+        
         serializer = ChangePasswordSerializer(data=request.data)
         if not serializer.is_valid():
+            print("Serializer validation errors:", serializer.errors)  # Debug log
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
         user = request.user
@@ -405,6 +408,7 @@ class ChangePasswordView(APIView):
 
         # Verify current password
         if not user.check_password(current):
+            print(f"Current password incorrect for user {user.email}")  # Debug log
             return Response({"current_password": ["Current password is incorrect."]}, status=status.HTTP_400_BAD_REQUEST)
 
         # Additional password validation (validators run via serializer, but re-run to be explicit)
@@ -412,6 +416,7 @@ class ChangePasswordView(APIView):
             from django.contrib.auth.password_validation import validate_password
             validate_password(new_password, user)
         except Exception as e:
+            print(f"Password validation error: {str(e)}")  # Debug log
             # e may be a ValidationError with messages
             try:
                 return Response({"new_password": e.messages}, status=status.HTTP_400_BAD_REQUEST)
@@ -421,6 +426,8 @@ class ChangePasswordView(APIView):
         # Set the new password
         user.set_password(new_password)
         user.save()
+
+        print(f"Password updated successfully for user {user.email}")  # Debug log
 
         # Keep the user logged in: do not log them out or invalidate tokens here.
         # The password has been set and saved above.
