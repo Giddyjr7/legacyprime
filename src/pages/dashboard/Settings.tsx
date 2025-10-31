@@ -1,6 +1,10 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Eye, EyeOff } from "lucide-react";
+import { api } from "@/utils/api";
+import { ENDPOINTS } from "@/config/api";
+import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/context/AuthContext";
 
 interface Message {
   text: string;
@@ -8,8 +12,7 @@ interface Message {
 }
 
 export default function Settings() {
-  // Temporary mock auth state until auth is implemented
-  const isAuthenticated = true;
+  const { isAuthenticated, isLoading } = useAuth();
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -17,8 +20,10 @@ export default function Settings() {
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [message, setMessage] = useState<Message | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
+  const [busy, setBusy] = useState(false);
   const navigate = useNavigate();
+
+  const { toast } = useToast();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -34,35 +39,74 @@ export default function Settings() {
       return;
     }
 
-    setIsLoading(true);
+    setBusy(true);
 
     if (!isAuthenticated) {
       setMessage({ text: "Please log in to change your password", type: "error" });
+      setBusy(false);
       return;
     }
 
     try {
-      // Temporary mock API call until backend is implemented
-      await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate API delay
-      
-      // Temporary mock validation: accept any non-empty current password while backend isn't available
-      if (currentPassword.trim().length === 0) {
-        throw new Error("Please enter your current password");
+      // Ensure CSRF cookie is set (safe no-op if already set)
+      try {
+        await api.get(ENDPOINTS.CSRF);
+      } catch (e) {
+        // ignore
       }
 
-  // On success, clear fields and redirect to dashboard with a flash message
-  setCurrentPassword("");
-  setNewPassword("");
-  setConfirmPassword("");
-  navigate('/dashboard', { state: { flashMessage: 'Your password has been updated sucessfully' } });
-  return;
-    } catch (error) {
-      setMessage({ 
-        text: error instanceof Error ? error.message : "An error occurred while changing password", 
-        type: "error" 
+      const response = await api.post(ENDPOINTS.CHANGE_PASSWORD, {
+        current_password: currentPassword,
+        new_password: newPassword,
+        confirm_password: confirmPassword,
       });
+
+      console.log("Password change response:", response);  // Debug log
+
+      // Keep user logged in; just show success toast and clear fields
+      toast({
+        title: "Success",
+        description: "Your password has been updated successfully",
+      });
+
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
+    } catch (error: any) {
+      console.error("Password change error:", error);  // Debug log
+      console.error("Error response:", error.response?.data);  // Debug log
+
+      // Get detailed error message from backend response
+      let errMsg = 'An error occurred while changing password';
+      if (error.response?.data) {
+        const data = error.response.data;
+        if (typeof data === 'string') {
+          errMsg = data;
+        } else if (typeof data === 'object') {
+          // Handle DRF error format {field: [errors]}
+          const firstError = Object.entries(data)[0];
+          if (firstError) {
+            const [field, errors] = firstError;
+            errMsg = Array.isArray(errors) ? errors[0] : errors;
+          }
+        }
+      }
+      // If fetchApi threw an APIError, it will carry a user-friendly message
+      if (!errMsg && error?.message) {
+        errMsg = error.message;
+      } else if (error?.message && errMsg === 'An error occurred while changing password') {
+        // Prefer explicit message from thrown error when available
+        errMsg = error.message;
+      }
+
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: errMsg,
+      });
+      setMessage({ text: errMsg, type: 'error' });
     } finally {
-      setIsLoading(false);
+      setBusy(false);
     }
   };
 
@@ -142,9 +186,9 @@ export default function Settings() {
               <button
                 type="submit"
                 className="w-full bg-primary text-primary-foreground py-2 px-4 rounded-md hover:bg-primary/90 transition disabled:opacity-50 disabled:cursor-not-allowed"
-                disabled={isLoading}
+                disabled={busy || isLoading}
               >
-                {isLoading ? "Updating..." : "Update Password"}
+                {busy ? "Updating..." : "Update Password"}
               </button>
               {message && (
                 <div className={`text-center text-sm mt-2 ${message.type === "success" ? "text-green-600" : "text-destructive"}`}>

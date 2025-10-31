@@ -5,6 +5,7 @@ import { useState, useEffect } from "react";
 import { api } from "@/utils/api";
 import { ENDPOINTS } from "@/config/api";
 import FlashMessage from "@/components/FlashMessage";
+import { useWebSocketNotifications } from "@/hooks/use-websocket";
 import { Line } from 'react-chartjs-2';
 import {
   Chart as ChartJS,
@@ -38,6 +39,34 @@ export default function Overview() {
   const [transactions, setTransactions] = useState<{deposits:any[]; withdrawals:any[]}>({deposits:[], withdrawals:[]});
 
   const { isAuthenticated, isLoading } = useAuth();
+
+  // Set up WebSocket notifications
+  useWebSocketNotifications((newBalance) => {
+    if (summary) {
+      setSummary({
+        ...summary,
+        total_balance: newBalance
+      });
+    }
+  });
+
+  // Update transactions when WebSocket notifies of changes
+  const handleTransactionUpdate = (type: string, updatedTransaction: any) => {
+    setTransactions(prev => {
+      if (type === 'deposit_approved') {
+        const updatedDeposits = prev.deposits.map(d => 
+          d.id === updatedTransaction.id ? { ...d, status: 'approved' } : d
+        );
+        return { ...prev, deposits: updatedDeposits };
+      } else if (type === 'withdrawal_approved') {
+        const updatedWithdrawals = prev.withdrawals.map(w => 
+          w.id === updatedTransaction.id ? { ...w, status: 'approved' } : w
+        );
+        return { ...prev, withdrawals: updatedWithdrawals };
+      }
+      return prev;
+    });
+  };
 
   useEffect(() => {
     if (isLoading) return; // wait for auth check
@@ -138,10 +167,13 @@ export default function Overview() {
             </thead>
             <tbody>
               {[
-                ...transactions.deposits.slice(0,3).map(d=>({type:'Deposit', date:d.created_at, status:d.status, amount:d.amount})),
-                ...transactions.withdrawals.slice(0,3).map(w=>({type:'Withdrawal', date:w.created_at, status:w.status, amount:w.amount})),
-              ].slice(0,3).map((row, idx)=> (
-                <tr key={idx} className="border-b border-border">
+                ...transactions.deposits.map(d=>({type:'Deposit', date:d.created_at, status:d.status, amount:d.amount})),
+                ...transactions.withdrawals.map(w=>({type:'Withdrawal', date:w.created_at, status:w.status, amount:w.amount})),
+              ]
+              .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()) // Sort by date, newest first
+              .slice(0, 3) // Take only the 3 most recent
+              .map((row, idx)=> (
+                <tr key={`${row.type}_${idx}`} className="border-b border-border">
                   <td className="py-2">{row.type}</td>
                   <td className="py-2">{new Date(row.date).toLocaleDateString()}</td>
                   <td className={`py-2 ${row.status==='approved' ? 'text-green-500' : row.status==='pending' ? 'text-yellow-500' : ''}`}>{row.status}</td>
@@ -162,27 +194,27 @@ export default function Overview() {
         <div className="h-72">
           <Line
             data={{
-              labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'],
+              labels: ['Total'],
               datasets: [
                 {
-                  label: 'Deposits',
-                  data: performance ? performance.deposits.map((p:any)=>Number(p.total)) : [1200, 1500, 1100, 1800, 1700, 2000, 2200, 2100, 1900, 2300, 2500, 2400],
+                  label: 'Total Deposits',
+                  data: [summary?.total_deposits || 0],
                   borderColor: 'rgb(34,197,94)',
                   backgroundColor: 'rgba(34,197,94,0.15)',
                   borderWidth: 3,
                   tension: 0.45,
                   fill: true,
-                  pointRadius: 0,
+                  pointRadius: 4,
                 },
                 {
-                  label: 'Withdrawals',
-                  data: performance ? performance.withdrawals.map((p:any)=>Number(p.total)) : [800, 900, 700, 1200, 1000, 1300, 1400, 1200, 1100, 1500, 1600, 1550],
+                  label: 'Total Withdrawals',
+                  data: [summary?.total_withdrawals || 0],
                   borderColor: 'rgb(59,130,246)',
                   backgroundColor: 'rgba(59,130,246,0.15)',
                   borderWidth: 3,
                   tension: 0.45,
                   fill: true,
-                  pointRadius: 0,
+                  pointRadius: 4,
                 },
               ],
             }}

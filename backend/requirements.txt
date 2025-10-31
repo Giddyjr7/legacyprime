@@ -3,6 +3,9 @@ djangorestframework
 django-cors-headers
 python-dotenv
 Pillow
+channels>=4.0.0
+channels-redis>=4.1.0
+daphne>=4.0.0
 
 # Optional (for type hints / dev)
 # pip install these in your venv if needed

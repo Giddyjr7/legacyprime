@@ -3,8 +3,10 @@ import { useNavigate } from "react-router-dom";
 import { api } from "@/utils/api";
 import { ENDPOINTS } from "@/config/api";
 import { Camera } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 
 export default function Profile() {
+  const { toast } = useToast();
   const [profile, setProfile] = useState({
     firstName: "",
     lastName: "",
@@ -18,6 +20,7 @@ export default function Profile() {
   });
 
   const [image, setImage] = useState<string | null>(null);
+  const [currentImageUrl, setCurrentImageUrl] = useState<string | null>(null);
   const navigate = useNavigate();
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -35,27 +38,77 @@ export default function Profile() {
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // call API to update profile
-    (async () => {
-      try {
-        const body = {
-          first_name: profile.firstName,
-          last_name: profile.lastName,
-          address: profile.address,
-          state: profile.state,
-          zip_code: profile.zipCode,
-          city: profile.city,
-          country: profile.country,
-        };
-        await api.put(ENDPOINTS.PROFILE, body);
-        navigate('/dashboard', { state: { flashMessage: 'Your Profile has been updated successfully' } });
-      } catch (err) {
-        console.error('Profile update error', err);
-        alert('Failed to update profile');
+
+    try {
+      // Create FormData if there's an image file
+      const formData = new FormData();
+
+      // Add all text fields
+      formData.append('first_name', profile.firstName);
+      formData.append('last_name', profile.lastName);
+      formData.append('address', profile.address);
+      formData.append('state', profile.state);
+      formData.append('zip_code', profile.zipCode);
+      formData.append('city', profile.city);
+      formData.append('country', profile.country);
+      formData.append('mobile', profile.mobile);
+      
+      // Keep track of whether we're updating the image
+      let isImageUpdating = false;
+
+      // Add file if present
+      const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
+      if (fileInput?.files?.length) {
+        formData.append('profile_picture', fileInput.files[0]);
+        isImageUpdating = true;
       }
-    })();
+
+      // Send multipart form data - no need to set Content-Type header
+      const response = await api.put(ENDPOINTS.PROFILE, formData);
+      
+      // If we're not updating the image, keep the current image URL
+      if (!isImageUpdating && currentImageUrl) {
+        setImage(currentImageUrl);
+      }
+      console.log('Profile update response:', response);
+
+      toast({
+        title: "Success",
+        description: "Your profile has been updated successfully",
+      });
+
+      // Refresh profile data to show new values
+      const data = await api.get(ENDPOINTS.PROFILE);
+      console.log('Profile refresh data:', data);
+      setProfile({
+        firstName: data.first_name || '',
+        lastName: data.last_name || '',
+        email: data.email || '',
+        mobile: data.mobile || '',
+        address: data.address || '',
+        state: data.state || '',
+        zipCode: data.zip_code || '',
+        city: data.city || '',
+        country: data.country || '',
+      });
+      if (data.profile_picture_url) {
+        const baseUrl = 'http://localhost:8000';
+        const imageUrl = data.profile_picture_url.startsWith('http')
+          ? data.profile_picture_url
+          : `${baseUrl}${data.profile_picture_url}`;
+        setCurrentImageUrl(imageUrl);
+        setImage(imageUrl);
+      }
+    } catch (err) {
+      console.error('Profile update error', err);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: err instanceof Error ? err.message : "Failed to update profile",
+      });
+    }
   };
 
   useEffect(() => {
@@ -66,15 +119,33 @@ export default function Profile() {
           firstName: data.first_name || '',
           lastName: data.last_name || '',
           email: data.email || '',
-          mobile: (data as any).mobile || '',
-          address: (data as any).address || '',
-          state: (data as any).state || '',
-          zipCode: (data as any).zip_code || '',
-          city: (data as any).city || '',
-          country: (data as any).country || '',
+          mobile: data.mobile || '',
+          address: data.address || '',
+          state: data.state || '',
+          zipCode: data.zip_code || '',
+          city: data.city || '',
+          country: data.country || '',
         });
+        
+        // Set profile picture if available
+        console.log('Profile data received:', data);
+        if (data.profile_picture_url) {
+          // Construct full URL if it's a relative path
+          const baseUrl = 'http://localhost:8000';  // Use the same base URL as the API
+          const imageUrl = data.profile_picture_url.startsWith('http') 
+            ? data.profile_picture_url 
+            : `${baseUrl}${data.profile_picture_url}`;
+          console.log('Setting profile picture URL:', imageUrl);
+          setCurrentImageUrl(imageUrl);
+          setImage(imageUrl);
+        }
       } catch (err) {
         console.error('Failed to load profile', err);
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: "Failed to load profile data",
+        });
       }
     })();
   }, []);
@@ -85,13 +156,17 @@ export default function Profile() {
         {/* Left Profile Card */}
         <div className="col-span-1 border border-border rounded-2xl overflow-hidden">
           <div className="bg-primary h-28 flex items-center justify-center">
-            <div className="w-20 h-20 rounded-full bg-gray-200 flex items-center justify-center text-3xl text-gray-500 border-4 border-white">
-              👤
+            <div className="w-20 h-20 rounded-full bg-gray-200 flex items-center justify-center text-3xl text-gray-500 border-4 border-white overflow-hidden">
+              {(image || currentImageUrl) ? (
+                <img src={image || currentImageUrl!} alt="Profile" className="w-full h-full object-cover" />
+              ) : (
+                <span>👤</span>
+              )}
             </div>
           </div>
           <div className="p-6">
             <h2 className="text-lg font-semibold">{profile.firstName} {profile.lastName}</h2>
-            <p className="text-sm text-muted-foreground">@gideon10</p>
+            <p className="text-sm text-muted-foreground">@{profile.firstName}</p>
             <div className="mt-6 space-y-2 text-sm">
               <p><span className="font-semibold">Email:</span> {profile.email}</p>
               <p><span className="font-semibold">Mobile:</span> {profile.mobile}</p>
@@ -112,8 +187,13 @@ export default function Profile() {
           <div className="flex items-center gap-4 mb-6">
             <div className="relative">
               <div className="w-20 h-20 rounded-full bg-gray-200 flex items-center justify-center overflow-hidden">
-                {image ? (
-                  <img src={image} alt="Profile" className="w-full h-full object-cover" />
+                {(image || currentImageUrl) ? (
+                  <img 
+                    src={image || currentImageUrl!} 
+                    alt="Profile" 
+                    className="w-full h-full object-cover"
+                    style={{ minWidth: '100%', minHeight: '100%' }}
+                  />
                 ) : (
                   <span className="text-3xl text-gray-500">👤</span>
                 )}
@@ -160,6 +240,16 @@ export default function Profile() {
               />
             </div>
             <div>
+              <label className="block text-sm font-medium">Mobile</label>
+              <input
+                type="text"
+                name="mobile"
+                value={profile.mobile}
+                onChange={handleChange}
+                className="mt-1 w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+              />
+            </div>
+            <div>
               <label className="block text-sm font-medium">Address</label>
               <input
                 type="text"
@@ -199,7 +289,7 @@ export default function Profile() {
                 className="mt-1 w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
               />
             </div>
-            <div className="md:col-span-2">
+            <div>
               <label className="block text-sm font-medium">Country</label>
               <input
                 type="text"

@@ -11,6 +11,9 @@ export const ENDPOINTS = {
   PROFILE: `${API_BASE_URL}/accounts/profile/`,
   VERIFY_OTP: `${API_BASE_URL}/accounts/verify-otp/`,
   RESEND_OTP: `${API_BASE_URL}/accounts/resend-otp/`,
+  REQUEST_PASSWORD_RESET: `${API_BASE_URL}/accounts/request-password-reset/`,
+  VERIFY_PASSWORD_RESET_OTP: `${API_BASE_URL}/accounts/verify-password-reset-otp/`,
+  SET_NEW_PASSWORD: `${API_BASE_URL}/accounts/set-new-password/`,
   CSRF: `${API_BASE_URL}/accounts/csrf/`,
   
   // Dashboard
@@ -30,4 +33,7 @@ export const ENDPOINTS = {
   // Notification endpoints
   NOTIFICATIONS: `${API_BASE_URL}/notifications/`,
   MARK_NOTIFICATION_READ: (id: string) => `${API_BASE_URL}/notifications/${id}/mark-read/`,
+
+  // Account actions
+  CHANGE_PASSWORD: `${API_BASE_URL}/accounts/change-password/`,
 };

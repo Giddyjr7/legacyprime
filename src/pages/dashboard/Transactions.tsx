@@ -171,7 +171,7 @@ export default function Transactions() {
             </thead>
             <tbody className="divide-y divide-border">
               {filteredTransactions.map((tx) => (
-                <tr key={tx.id} className="hover:bg-muted/50 transition-colors">
+                <tr key={`${tx.transaction_type}_${tx.id}`} className="hover:bg-muted/50 transition-colors">
                   <td className="px-4 py-3 font-mono text-xs">{tx.reference}</td>
                   <td className="px-4 py-3">
                     <span className={`inline-block px-2 py-1 rounded-full text-xs font-medium ${

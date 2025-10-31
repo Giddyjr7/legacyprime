@@ -9,11 +9,13 @@ interface FetchOptions extends RequestInit {
 
 export class APIError extends Error {
   status: number;
+  data?: any;
   
-  constructor(message: string, status: number) {
+  constructor(message: string, status: number, data?: any) {
     super(message);
     this.status = status;
     this.name = 'APIError';
+    this.data = data;
   }
 }
 
@@ -35,21 +37,31 @@ export const fetchApi = async <T = any>(url: string, options: FetchOptions): Pro
       return cookieValue;
     };
 
-    const headers: HeadersInit = {
-      'Content-Type': 'application/json',
+    // Start with base headers that are always needed
+    const baseHeaders: HeadersInit = {
       'X-Requested-With': 'XMLHttpRequest',
       'X-CSRFToken': getCsrfToken() || '',
+    };
+
+    // Only add Content-Type for non-FormData requests
+    if (!(options.body instanceof FormData)) {
+      baseHeaders['Content-Type'] = 'application/json';
+    }
+
+    const headers: HeadersInit = {
+      ...baseHeaders,
       ...(options.headers || {}),
     };
 
     const config: RequestInit = {
       ...options,
       headers,
-      credentials: 'include', // This is important for handling cookies
-      mode: 'cors',  // Enable CORS
+      credentials: 'include',
+      mode: 'cors',
     };
 
-    if (options.body && typeof options.body === 'object') {
+    // Only JSON stringify if not FormData
+    if (options.body && typeof options.body === 'object' && !(options.body instanceof FormData)) {
       config.body = JSON.stringify(options.body);
     }
 
@@ -63,10 +75,35 @@ export const fetchApi = async <T = any>(url: string, options: FetchOptions): Pro
     const data = await response.json();
 
     if (!response.ok) {
-      const errorMessage = data.message || 
-        (typeof data.error === 'string' ? data.error : 
-        (data.detail || 'Something went wrong'));
-      throw new APIError(errorMessage, response.status);
+      // Try to extract a useful error message from common DRF response shapes.
+      let errorMessage = 'Something went wrong';
+
+      if (data) {
+        if (typeof data === 'string') {
+          errorMessage = data;
+        } else if (typeof data === 'object') {
+          // DRF returns field->list errors, e.g. { "current_password": ["..."] }
+          const firstEntry = Object.entries(data)[0];
+          if (firstEntry) {
+            const [, val] = firstEntry;
+            if (Array.isArray(val) && val.length > 0) {
+              errorMessage = val[0];
+            } else if (typeof val === 'string') {
+              errorMessage = val;
+            } else if (data.message) {
+              errorMessage = data.message;
+            } else if (data.detail) {
+              errorMessage = data.detail;
+            }
+          } else if (data.message) {
+            errorMessage = data.message;
+          } else if (data.detail) {
+            errorMessage = data.detail;
+          }
+        }
+      }
+
+      throw new APIError(errorMessage, response.status, data);
     }
 
     return data;

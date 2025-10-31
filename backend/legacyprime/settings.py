@@ -19,11 +19,20 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'rest_framework',
     'corsheaders',
+    'channels',
     'accounts',
     'transactions',
     'wallet',
     'notifications',
 ]
+
+# Channels configuration
+ASGI_APPLICATION = 'legacyprime.asgi.application'
+CHANNEL_LAYERS = {
+    'default': {
+        'BACKEND': 'channels.layers.InMemoryChannelLayer'
+    }
+}
 
 # Use custom user model from accounts app
 AUTH_USER_MODEL = 'accounts.User'
@@ -33,6 +42,8 @@ CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:8080",  # Vite frontend server
     "http://127.0.0.1:8080",
+    "http://localhost:5173",  # Vite dev server
+    "http://127.0.0.1:5173",
 ]
 CORS_EXPOSE_HEADERS = [
     'content-type',

@@ -3,6 +3,7 @@
 import { Button } from '@/components/ui/button';
 import { Check } from 'lucide-react';
 import { pricingPlans } from '@/data/pricingData'; // adjust path if necessary
+import { Link } from 'react-router-dom';
 
 const Pricing = () => {
   return (
@@ -37,14 +38,14 @@ const Pricing = () => {
                 <h3 className="text-xl font-semibold mb-2 text-white">{plan.name}</h3>
                 <p className="text-gray-400 mb-6">{plan.description}</p>
                 
-                <Button 
+                <Button asChild
                   className={`w-full mb-6 ${
                     plan.highlighted 
                       ? 'bg-crypto-purple hover:bg-crypto-dark-purple' 
                       : 'bg-white/10 hover:bg-white/20 text-white'
                   }`}
                 >
-                  {plan.buttonText}
+                  <Link to="/signup">{plan.buttonText}</Link>
                 </Button>
                 
                 <div>

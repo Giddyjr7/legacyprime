@@ -1,6 +1,7 @@
 
 import { ArrowRight, ArrowUpRight, ChevronRight } from 'lucide-react';
 import { Button } from "@/components/ui/button";
+import { Link } from 'react-router-dom';
 
 const Hero = () => {
   return (
@@ -26,13 +27,17 @@ const Hero = () => {
               Experience seamless investing with real-time analytics, AI-driven strategies, and transparent returns.
             </p>
             <div className="flex flex-col sm:flex-row gap-4">
-              <Button size="lg" className="bg-crypto-purple hover:bg-crypto-dark-purple text-white px-8 py-6">
-                Start Investing
-                <ArrowRight className="ml-2 h-5 w-5" />
+              <Button asChild size="lg" className="bg-crypto-purple hover:bg-crypto-dark-purple text-white px-8 py-6">
+                <Link to="/login">
+                  Start Investing
+                  <ArrowRight className="ml-2 h-5 w-5" />
+                </Link>
               </Button>
-              <Button variant="outline" size="lg" className="border-gray-700 text-white hover:bg-white/5 py-6">
-                View Plans
-                <ArrowUpRight className="ml-2 h-5 w-5" />
+              <Button asChild variant="outline" size="lg" className="border-gray-700 text-white hover:bg-white/5 py-6">
+                <a href="#pricing">
+                  View Plans
+                  <ArrowUpRight className="ml-2 h-5 w-5" />
+                </a>
               </Button>
             </div>
             <div className="mt-8 flex items-center space-x-6">

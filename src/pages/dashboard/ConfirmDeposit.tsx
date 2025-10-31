@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { ENDPOINTS } from "@/config/api";
 import { api } from "@/utils/api";
 import { useState } from "react";
+import { useToast } from "@/hooks/use-toast";
 
 const ConfirmDeposit = () => {
   const location = useLocation();
@@ -17,6 +18,7 @@ const ConfirmDeposit = () => {
   const walletAddress = "bc1qcl84vkhs9aur0qcf02n8xfwk6pe95zrtq7f05w";
 
   const [file, setFile] = useState<File | null>(null);
+  const { toast } = useToast();
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) setFile(e.target.files[0]);
@@ -65,10 +67,27 @@ const ConfirmDeposit = () => {
           <Button
             onClick={async () => {
               try {
+                if (!file) {
+                  toast({
+                    title: 'Upload required',
+                    description: 'Please upload a proof of payment to continue.',
+                    variant: 'destructive',
+                  });
+                  return;
+                }
+
                 const fd = new FormData();
                 fd.append('amount', String(amount));
                 fd.append('method', String((location.state || {}).method || ''));
-                if (file) fd.append('proof_image', file);
+                
+                // Log file details for debugging
+                console.log('File details:', {
+                  name: file.name,
+                  type: file.type,
+                  size: file.size
+                });
+                
+                fd.append('proof_image', file, file.name);
 
                 // Ensure csrftoken cookie exists. If missing, call a lightweight endpoint
                 // that sets the cookie via ensure_csrf_cookie.
@@ -88,6 +107,12 @@ const ConfirmDeposit = () => {
                 }
 
                 // Use fetch directly to handle multipart and include credentials
+                console.log('Making deposit request with:', {
+                  amount,
+                  method: (location.state || {}).method,
+                  file: file?.name
+                });
+
                 const res = await fetch(ENDPOINTS.WALLET_DEPOSIT_REQUEST, {
                   method: 'POST',
                   body: fd,
@@ -98,19 +123,37 @@ const ConfirmDeposit = () => {
                   }
                 });
 
+                console.log('Response status:', res.status);
+                const responseText = await res.text();
+                console.log('Response text:', responseText);
+
                 if (!res.ok) {
-                  const err = await res.json().catch(() => ({ message: 'Unknown error' }));
-                  alert(err.message || 'Failed to submit deposit');
+                  let errorMessage = 'Failed to submit deposit';
+                  try {
+                    const errorData = JSON.parse(responseText);
+                    errorMessage = errorData.error || errorData.message || errorMessage;
+                  } catch (e) {
+                    console.error('Error parsing error response:', e);
+                  }
+                  toast({
+                    title: 'Deposit failed',
+                    description: String(errorMessage),
+                    variant: 'destructive',
+                  });
                   return;
                 }
 
-                const data = await res.json();
+                const data = JSON.parse(responseText);
                 navigate('/dashboard', {
                   state: { flashMessage: 'Your deposit is being processed and will be approved shortly' }
                 });
               } catch (err) {
-                console.error('Deposit submit error', err);
-                alert('Failed to submit deposit');
+                console.error('Deposit submit error:', err);
+                toast({
+                  title: 'Error',
+                  description: 'Failed to submit deposit',
+                  variant: 'destructive',
+                });
               }
             }}
             className="w-full bg-primary hover:opacity-90 text-primary-foreground rounded-xl"
