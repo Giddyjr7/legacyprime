@@ -48,8 +48,12 @@ const VerifyOtp = () => {
         description: "Email verified successfully!"
       });
 
-      // Redirect to complete profile or dashboard
-      navigate("/complete-profile");
+      // Redirect to login with a success flash so the user knows their
+      // account was created and can now log in. CompleteProfile will
+      // redirect to /login for unauthenticated users, but that flow
+      // previously showed an error message — pass an explicit success
+      // flash to avoid confusing the user.
+      navigate("/login", { state: { flashMessage: 'Account created successfully. Please log in to continue.' } });
     } catch (error) {
       toast({
         variant: "destructive",

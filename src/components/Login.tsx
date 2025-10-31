@@ -1,8 +1,8 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from "@/components/ui/card"
-import { Link, useNavigate } from "react-router-dom"
+import { Link, useNavigate, useLocation } from "react-router-dom"
 import { Eye, EyeOff } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { useToast } from "@/hooks/use-toast";
@@ -11,6 +11,7 @@ const Login = () => {
   const navigate = useNavigate();
   const { login } = useAuth();
   const { toast } = useToast();
+  const location = useLocation();
   
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -39,6 +40,17 @@ const Login = () => {
   };
 
   const [showPassword, setShowPassword] = useState(false);
+
+  // If redirected here with a flash message (e.g. after verifying email), show
+  // a success toast so the user isn't confused by being sent to login.
+  useEffect(() => {
+    const state = (location.state as any) || {};
+    if (state.flashMessage) {
+      toast({ title: 'Success', description: state.flashMessage });
+      // Clear the history state so the message doesn't reappear on refresh
+      window.history.replaceState({}, document.title);
+    }
+  }, [location.state, toast]);
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background text-foreground">
