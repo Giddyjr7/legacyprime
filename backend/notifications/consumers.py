@@ -1,13 +1,33 @@
 from channels.generic.websocket import AsyncJsonWebsocketConsumer
 from channels.db import database_sync_to_async
 from django.contrib.auth import get_user_model
+from django.contrib.auth.models import AnonymousUser
+from django.middleware.csrf import CsrfViewMiddleware
 from asgiref.sync import async_to_sync
 
 User = get_user_model()
 
 class UserNotificationConsumer(AsyncJsonWebsocketConsumer):
     async def connect(self):
-        user = self.scope.get('user')
+        # Get token from query string
+        query_string = self.scope.get('query_string', b'').decode()
+        params = dict(param.split('=') for param in query_string.split('&') if param)
+        
+        if 'token' not in params:
+            await self.close()
+            return
+            
+        # Get token and validate it's a proper CSRF token
+        token = params['token']
+        csrf = CsrfViewMiddleware()
+        
+        # If token is valid, get the associated user from the session
+        if not csrf._check_token(token):
+            await self.close()
+            return
+            
+        # Get user from the session and validate
+        user = self.scope.get('user', AnonymousUser())
         if not user or user.is_anonymous:
             await self.close()
             return

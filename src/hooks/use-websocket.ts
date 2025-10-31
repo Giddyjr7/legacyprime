@@ -20,13 +20,15 @@ export function useWebSocketNotifications(onBalanceUpdate?: (balance: string) =>
     let reconnectAttempts = 0;
 
     const connect = () => {
-      // Get session ID from cookie
-      const sessionId = document.cookie.split('; ')
-        .find(row => row.startsWith('sessionid='))
+      // Get CSRF token from cookie - this is more reliable than session ID
+      // as it's specifically made available to JavaScript
+      const csrfToken = document.cookie
+        .split('; ')
+        .find(row => row.startsWith('csrftoken='))
         ?.split('=')[1];
 
-      if (!sessionId) {
-        console.error('No session ID found for WebSocket authentication');
+      if (!csrfToken) {
+        console.error('No CSRF token found for WebSocket authentication');
         return;
       }
 
@@ -35,8 +37,8 @@ export function useWebSocketNotifications(onBalanceUpdate?: (balance: string) =>
         wsRef.current.close();
       }
 
-      // Connect to WebSocket with session token
-      const ws = new WebSocket(`ws://localhost:8000/ws/notifications/?token=${sessionId}`);
+      // Connect to WebSocket with CSRF token for authentication
+      const ws = new WebSocket(`ws://localhost:8000/ws/notifications/?token=${csrfToken}`);
       wsRef.current = ws;
 
       ws.onopen = () => {
