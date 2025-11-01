@@ -25,10 +25,22 @@ export default function Transactions() {
   const [sortOrder, setSortOrder] = useState('newest');
 
   const filteredTransactions = useMemo(() => {
+    const searchTerm = search.toLowerCase().trim();
     const filtered = transactions.filter(tx => {
-      const matchesSearch = tx.reference?.toLowerCase().includes(search.toLowerCase());
-      const matchesType = typeFilter === 'all' || tx.transaction_type === typeFilter;
-      return matchesSearch && matchesType;
+      // Check if search term matches any of the transaction fields
+      const matchesReference = tx.reference?.toLowerCase().includes(searchTerm);
+      const matchesType = tx.transaction_type_display?.toLowerCase().includes(searchTerm);
+      const matchesAmount = Number(tx.amount).toLocaleString('en-US', { 
+        minimumFractionDigits: 2, 
+        maximumFractionDigits: 2 
+      }).includes(searchTerm);
+      const matchesStatus = tx.status_display?.toLowerCase().includes(searchTerm);
+      const matchesDate = new Date(tx.created_at).toLocaleString().toLowerCase().includes(searchTerm);
+      
+      const matchesSearch = matchesReference || matchesType || matchesAmount || matchesStatus || matchesDate;
+      const matchesTypeFilter = typeFilter === 'all' || tx.transaction_type === typeFilter;
+      
+      return matchesSearch && matchesTypeFilter;
     });
 
     const sorted = filtered.sort((a, b) => {
@@ -129,7 +141,7 @@ export default function Transactions() {
         <select
           value={typeFilter}
           onChange={(e) => setTypeFilter(e.target.value)}
-          className="px-4 py-2 rounded-lg border border-border bg-background focus:outline-none focus:ring-2 focus:ring-crypto-purple"
+          className="w-full text-sm px-3 py-2 rounded-lg border border-border bg-background focus:outline-none focus:ring-2 focus:ring-crypto-purple [&>option]:py-2 [&>option]:px-3 [&_option:checked]:bg-muted [&>option:hover]:bg-muted/50"
         >
           <option value="all">All Types</option>
           <option value="deposit">Deposits Only</option>
@@ -153,13 +165,13 @@ export default function Transactions() {
       </div>
 
       {/* Transactions Table */}
-      <div className="overflow-x-auto rounded-lg border border-border">
+      <div className="overflow-x-auto rounded-lg border border-border max-w-[calc(100vw-2rem)] md:max-w-full [&::-webkit-scrollbar]:h-2 [&::-webkit-scrollbar-track]:bg-background [&::-webkit-scrollbar-thumb]:bg-muted hover:[&::-webkit-scrollbar-thumb]:bg-muted/80 [&::-webkit-scrollbar-thumb]:rounded-full">
         {filteredTransactions.length === 0 ? (
           <div className="p-8 text-center text-muted-foreground">
             No transactions found
           </div>
         ) : (
-          <table className="min-w-full text-sm border-separate border-spacing-0">
+          <table className="w-[800px] md:w-full text-sm border-separate border-spacing-0">
             <thead className="bg-muted sticky top-0 z-10">
               <tr>
                 <th className="px-4 py-3 text-left font-medium">Reference</th>
