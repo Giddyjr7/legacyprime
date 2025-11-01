@@ -1,12 +1,32 @@
+# Core Django packages
 Django>=4.2
-djangorestframework
-django-cors-headers
-python-dotenv
-Pillow
+djangorestframework>=3.14.0
+django-cors-headers>=4.3.0
+python-dotenv>=1.0.0
+
+# Database
+psycopg2-binary>=2.9.9  # For PostgreSQL support
+dj-database-url>=2.1.0  # For database URL configuration
+
+# Static and Media Files
+whitenoise>=6.6.0  # For static file serving
+Pillow>=10.1.0    # For image processing
+
+# WebSocket Support
 channels>=4.0.0
 channels-redis>=4.1.0
 daphne>=4.0.0
 
-# Optional (for type hints / dev)
-# pip install these in your venv if needed
-# psycopg2-binary
+# Production Server
+gunicorn>=21.2.0  # Production WSGI server
+
+# Security and Optimization
+django-storages>=1.14.2  # For AWS S3 or other storage backends
+django-cache-url>=3.4.4  # For cache configuration
+redis>=5.0.1      # For caching and channels layer
+
+# Monitoring and Logging
+sentry-sdk>=1.32.0  # For error tracking
+
+# Performance and Security
+django-debug-toolbar>=4.2.0  # For development debugging
