@@ -19,6 +19,7 @@ daphne>=4.0.0
 
 # Production Server
 gunicorn>=21.2.0  # Production WSGI server
+uvicorn==0.29.0
 
 # Security and Optimization
 django-storages>=1.14.2  # For AWS S3 or other storage backends
