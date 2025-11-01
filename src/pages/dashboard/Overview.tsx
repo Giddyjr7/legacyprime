@@ -5,7 +5,6 @@ import { useState, useEffect } from "react";
 import { api } from "@/utils/api";
 import { ENDPOINTS } from "@/config/api";
 import FlashMessage from "@/components/FlashMessage";
-import { useWebSocketNotifications } from "@/hooks/use-websocket";
 import { Line } from 'react-chartjs-2';
 import {
   Chart as ChartJS,
@@ -40,15 +39,7 @@ export default function Overview() {
 
   const { isAuthenticated, isLoading } = useAuth();
 
-  // Set up WebSocket notifications
-  useWebSocketNotifications((newBalance) => {
-    if (summary) {
-      setSummary({
-        ...summary,
-        total_balance: newBalance
-      });
-    }
-  });
+  // WebSocket notifications disabled — no-op to avoid console noise
 
   // Update transactions when WebSocket notifies of changes
   const handleTransactionUpdate = (type: string, updatedTransaction: any) => {

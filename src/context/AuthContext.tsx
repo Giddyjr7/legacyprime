@@ -55,7 +55,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       }
 
       const userData = await api.get<User>(ENDPOINTS.PROFILE);
-      console.log('User data received:', userData);
+      // console.log('User data received:', userData);
       setUser(userData);
     } catch (error) {
       console.log('Auth check error:', error);
