@@ -34,11 +34,11 @@ services:
         value: "legacyprime-media"
 
   # Frontend Service
-  - type: web
+  - type: static
     name: legacyprime-web
-    env: node
+    env: static
     buildCommand: bun install && bun run build
-    startCommand: bun run preview
+    staticPublishPath: dist
     envVars:
       - key: NODE_VERSION
         value: 18.0.0
