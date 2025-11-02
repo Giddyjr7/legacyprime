@@ -39,13 +39,13 @@ services:
   - type: web
     name: legacyprime-web
     env: node
-    buildCommand: npm install && npm run build 
-    startCommand: npm run start
+    buildCommand: npm install --force && npm run build 
+    startCommand: npm run preview
     envVars:
       - key: NODE_VERSION
         value: 18.0.0
       - key: VITE_API_URL
-        value: "https://legacyprime.onrender.com/api" 
+        value: "https://${legacyprime-api.RENDER_EXTERNAL_HOSTNAME}/api"
 
 databases:
   - name: legacyprime-db
