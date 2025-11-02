@@ -29,7 +29,7 @@ if RENDER_EXTERNAL_HOSTNAME:
 env_hosts = os.environ.get('DJANGO_ALLOWED_HOSTS', '').split(',')
 ALLOWED_HOSTS.extend([host.strip() for host in env_hosts if host.strip()])
 
-# Remove duplicates while preserving order
+# Remove duplicates
 ALLOWED_HOSTS = list(dict.fromkeys(ALLOWED_HOSTS))
 
 INSTALLED_APPS = [
@@ -59,9 +59,24 @@ CHANNEL_LAYERS = {
 # Use custom user model from accounts app
 AUTH_USER_MODEL = 'accounts.User'
 
-# CORS settings
+# --- CORS settings ---
 CORS_ALLOW_CREDENTIALS = True
-CORS_ALLOWED_ORIGINS = os.environ.get('CORS_ALLOWED_ORIGINS', 'http://localhost:8080,http://127.0.0.1:8080,http://localhost:5173,http://127.0.0.1:5173').split(',')
+
+# Hardcode the essential domains and include env variables
+BASE_ALLOWED_ORIGINS = [
+    'http://localhost:8080',
+    'http://127.0.0.1:8080',
+    'http://localhost:5173',
+    'http://127.0.0.1:5173',
+    'https://legacyprime.vercel.app',  # CRITICAL: Vercel frontend host
+    'https://legacyprime.onrender.com', # Render domain (though usually not needed here)
+]
+
+# Add origins from environment variable
+ENV_ORIGINS = os.environ.get('CORS_ALLOWED_ORIGINS', '').split(',')
+CORS_ALLOWED_ORIGINS = list(set(BASE_ALLOWED_ORIGINS + [o.strip() for o in ENV_ORIGINS if o.strip()]))
+# --- END CORS settings ---
+
 CORS_EXPOSE_HEADERS = [
     'content-type',
     'x-csrftoken',
@@ -126,25 +141,19 @@ LOGGING = {
     },
 }
 
-# CSRF settings (development)
-# Allow cross-site cookie for local dev (Vite on a different port).
-# In production, use 'Lax' or 'Strict' and set CSRF_COOKIE_SECURE=True.
-# Use 'Lax' for development so browsers accept cookies over different ports on localhost.
-# Note: Setting SameSite=None requires cookies to be Secure in modern browsers; since
-# local development typically uses plain HTTP we avoid SameSite=None to prevent the
-# browser rejecting cookies. For production with HTTPS, consider using SameSite=None
-# and SESSION_COOKIE_SECURE = True.
+# --- CSRF settings (CRITICAL FIX HERE) ---
 CSRF_COOKIE_SAMESITE = 'Lax'
-CSRF_COOKIE_HTTPONLY = False  # False because we read it in JS to set X-CSRFToken
+CSRF_COOKIE_HTTPONLY = False
 CSRF_COOKIE_SECURE = False    # Set True in production when using HTTPS
+# CRITICAL: Include the Vercel frontend in the list of trusted origins for POST requests
 CSRF_TRUSTED_ORIGINS = [
     'http://localhost:8080',
     'http://127.0.0.1:8080',
-    'https://legacyprime.onrender.com'
+    'https://legacyprime.onrender.com',
+    'https://legacyprime.vercel.app'  # <-- VERCEL HOST ADDED
 ]
-# Use cookie-based CSRF tokens (default). Setting this to False means the
-# token will be in the cookie named 'csrftoken' which the frontend expects.
 CSRF_USE_SESSIONS = False
+# --- END CSRF settings ---
 
 ROOT_URLCONF = 'legacyprime.urls'
 
@@ -212,8 +221,6 @@ REST_FRAMEWORK = {
 }
 
 # Additional CORS settings for production
-# For credentials (cookies) to work, do NOT use CORS_ALLOW_ALL_ORIGINS = True when
-# CORS_ALLOW_CREDENTIALS = True. Instead explicitly list allowed origins.
 CORS_ALLOW_ALL_ORIGINS = False
 
 # Media settings for uploaded files
@@ -222,25 +229,24 @@ MEDIA_ROOT = BASE_DIR / 'media'
 
 # Session Settings
 SESSION_ENGINE = 'django.contrib.sessions.backends.db'
-SESSION_COOKIE_SECURE = False  # Set to True in production with HTTPS
+SESSION_COOKIE_SECURE = False
 SESSION_COOKIE_HTTPONLY = True
 SESSION_COOKIE_SAMESITE = 'Lax'
-SESSION_COOKIE_AGE = 7 * 24 * 60 * 60  # 7 days in seconds
-SESSION_EXPIRE_AT_BROWSER_CLOSE = False  # Keep session after browser close
-SESSION_SAVE_EVERY_REQUEST = True  # Update session on every request
+SESSION_COOKIE_AGE = 7 * 24 * 60 * 60
+SESSION_EXPIRE_AT_BROWSER_CLOSE = False
+SESSION_SAVE_EVERY_REQUEST = True
 
 # Email (SMTP) - pull from env
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
-EMAIL_HOST = 'smtp.gmail.com'  # Hard-code for reliability
-EMAIL_PORT = 587  # Changed from 465 to 587
+EMAIL_HOST = 'smtp.gmail.com'
+EMAIL_PORT = 587
 EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER', '')
 EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', '')
-EMAIL_USE_TLS = True  # Changed from False to True (required for port 587)
-EMAIL_USE_SSL = False   # Changed from True to False
+EMAIL_USE_TLS = True
+EMAIL_USE_SSL = False
 DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', 'no-reply@legacyprime.com')
-EMAIL_TIMEOUT = 15     # Shorter timeout for faster failure
-SMTP_DEBUG_LEVEL = 1   # Enable SMTP debug output
-
+EMAIL_TIMEOUT = 15
+SMTP_DEBUG_LEVEL = 1
 
 # Project name constant
 PROJECT_NAME = 'LegacyPrime'
