@@ -39,7 +39,7 @@ services:
   - type: web
     name: legacyprime-web
     env: node
-    buildCommand: npm install 
+    buildCommand: npm install && npm run build 
     startCommand: npm run start
     envVars:
       - key: NODE_VERSION
