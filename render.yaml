@@ -45,7 +45,10 @@ services:
       - key: NODE_VERSION
         value: 18.0.0
       - key: VITE_API_URL
-        value: "https://legacyprime-api.onrender.com"
+        # Use Render-provided hostname when available so the frontend automatically
+        # targets the correct production API domain. Render sets RENDER_EXTERNAL_HOSTNAME
+        # for each service at runtime.
+        value: "https://${legacyprime-api.RENDER_EXTERNAL_HOSTNAME}/api"
 
 databases:
   - name: legacyprime-db

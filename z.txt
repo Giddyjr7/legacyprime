@@ -68,6 +68,7 @@
     package.json
     postcss.config.js
     README.md
+    render.yaml
     tailwind.config.ts
     tsconfig.app.json
     tsconfig.json
