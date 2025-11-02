@@ -123,6 +123,7 @@ CSRF_COOKIE_SECURE = False    # Set True in production when using HTTPS
 CSRF_TRUSTED_ORIGINS = [
     'http://localhost:8080',
     'http://127.0.0.1:8080',
+    'https://legacyprime.onrender.com'
 ]
 # Use cookie-based CSRF tokens (default). Setting this to False means the
 # token will be in the cookie named 'csrftoken' which the frontend expects.
@@ -206,14 +207,15 @@ SESSION_SAVE_EVERY_REQUEST = True  # Update session on every request
 # Email (SMTP) - pull from env
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
 EMAIL_HOST = 'smtp.gmail.com'  # Hard-code for reliability
-EMAIL_PORT = 465  # Use SSL port instead of TLS
+EMAIL_PORT = 587  # Changed from 465 to 587
 EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER', '')
 EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', '')
-EMAIL_USE_TLS = False  # We'll use SSL instead
-EMAIL_USE_SSL = True   # Use SSL connection
+EMAIL_USE_TLS = True  # Changed from False to True (required for port 587)
+EMAIL_USE_SSL = False   # Changed from True to False
 DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', 'no-reply@legacyprime.com')
 EMAIL_TIMEOUT = 15     # Shorter timeout for faster failure
 SMTP_DEBUG_LEVEL = 1   # Enable SMTP debug output
+
 
 # Project name constant
 PROJECT_NAME = 'LegacyPrime'
