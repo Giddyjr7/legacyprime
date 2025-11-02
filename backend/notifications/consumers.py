@@ -1,12 +1,11 @@
 from channels.generic.websocket import AsyncJsonWebsocketConsumer
 from channels.db import database_sync_to_async
+from django.contrib.auth import get_user_model
+from django.contrib.auth.models import AnonymousUser
 from django.middleware.csrf import CsrfViewMiddleware
 from asgiref.sync import async_to_sync
 
-# Avoid importing Django auth models at module import time because
-# importing `django.contrib.auth.models` triggers model class creation
-# which requires the app registry to be ready. Import inside methods
-# (after ASGI application initialization) instead.
+User = get_user_model()
 
 class UserNotificationConsumer(AsyncJsonWebsocketConsumer):
     async def connect(self):
@@ -27,17 +26,8 @@ class UserNotificationConsumer(AsyncJsonWebsocketConsumer):
             await self.close()
             return
             
-        # Get user from the session and validate. Import AnonymousUser
-        # lazily to avoid referencing auth model classes before apps are ready.
-        try:
-            from django.contrib.auth.models import AnonymousUser
-        except Exception:
-            AnonymousUser = None
-
-        user = self.scope.get('user', None)
-        if user is None:
-            # If scope didn't include a user, fall back to AnonymousUser if available
-            user = AnonymousUser() if AnonymousUser is not None else None
+        # Get user from the session and validate
+        user = self.scope.get('user', AnonymousUser())
         if not user or user.is_anonymous:
             await self.close()
             return
