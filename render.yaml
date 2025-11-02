@@ -26,8 +26,6 @@ services:
           name: legacyprime-redis
           type: redis
           property: connectionString
-      - key: DJANGO_SECRET_KEY
-        sync: false
       - key: AWS_ACCESS_KEY_ID
         sync: false
       - key: AWS_SECRET_ACCESS_KEY
@@ -39,21 +37,21 @@ services:
   - type: web
     name: legacyprime-web
     env: node
-    buildCommand: npm install --force && npm run build 
-    startCommand: npm run preview
+    buildCommand: bun install && bun run build
+    startCommand: bun run preview
     envVars:
       - key: NODE_VERSION
         value: 18.0.0
       - key: VITE_API_URL
         value: "https://${legacyprime-api.RENDER_EXTERNAL_HOSTNAME}/api"
 
-databases:
-  - name: legacyprime-db
-    databaseName: legacyprime
-    plan: free
-
-services:
+  # Redis service
   - type: redis
     name: legacyprime-redis
     plan: free
     maxmemoryPolicy: noeviction
+
+databases:
+  - name: legacyprime-db
+    databaseName: legacyprime
+    plan: free
