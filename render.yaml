@@ -37,7 +37,8 @@ services:
   - type: static
     name: legacyprime-web
     env: static
-    buildCommand: bun install && bun run build
+    # Use an explicit shell invocation so Render runs the exact commands we want
+    buildCommand: bash -lc "bun install && bun run build"
     staticPublishPath: dist
     envVars:
       - key: NODE_VERSION
