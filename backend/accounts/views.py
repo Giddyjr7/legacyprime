@@ -7,6 +7,8 @@ from django.utils.decorators import method_decorator
 from django.core.mail import EmailMessage
 from django.conf import settings
 from django.template.loader import render_to_string
+import logging
+from notifications.utils import send_transactional_email
 from .models import OTP
 from .serializers import RegisterSerializer, LoginSerializer, UserSerializer, UserProfileSerializer, ChangePasswordSerializer
 
@@ -34,136 +36,63 @@ class RegisterView(APIView):
                 'otp_code': otp_instance.otp
             }
             
-            # Render email template
-            html_message = render_to_string(
-                'notifications/otp_email.html',
-                context
-            )
-            
+            # Send using the reusable transactional email helper which will render
+            # the HTML and text templates and route through the configured backend.
+            logger = logging.getLogger(__name__)
             try:
-                # Check if email settings are configured
-                if not all([settings.EMAIL_HOST, settings.EMAIL_HOST_USER, settings.EMAIL_HOST_PASSWORD]):
-                    missing_settings = {
-                        'host': not bool(settings.EMAIL_HOST),
-                        'user': not bool(settings.EMAIL_HOST_USER),
-                        'password': not bool(settings.EMAIL_HOST_PASSWORD)
-                    }
-                    print("Missing email settings:", {k: v for k, v in missing_settings.items() if v})
+                sent = send_transactional_email(
+                    subject=subject,
+                    recipient_list=[email],
+                    template_name='notifications/otp_email.html',
+                    context=context,
+                    from_email=getattr(settings, 'DEFAULT_FROM_EMAIL', None),
+                    fail_silently=False,
+                )
+
+                if not sent:
+                    logger.error('send_transactional_email returned 0 for %s', email)
                     return Response({
-                        "message": "Email service not configured properly. Please contact support."
+                        'message': 'Failed to send verification email',
+                        'error': 'send_failed'
                     }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-                # Create the email message
-                email_message = EmailMessage(
-                    subject,
-                    html_message,
-                    f'{settings.PROJECT_NAME} <{settings.EMAIL_HOST_USER}>',
-                    [email]
-                )
-                email_message.content_subtype = "html"
-                
-                # Print debug info
-                print(f"Attempting to send email via {settings.EMAIL_HOST}:{settings.EMAIL_PORT}")
-                print(f"Using email account: {settings.EMAIL_HOST_USER}")
-                print(f"TLS Enabled: {settings.EMAIL_USE_TLS}")
-                
-                # Send email with extensive error handling
-                from socket import timeout as SocketTimeout
-                import ssl
-                
-                try:
-                    print("Email configuration:")
-                    print(f"- Host: {settings.EMAIL_HOST}")
-                    print(f"- Port: {settings.EMAIL_PORT}")
-                    print(f"- TLS: {settings.EMAIL_USE_TLS}")
-                    print(f"- From: {settings.EMAIL_HOST_USER}")
-                    print(f"- Timeout: {settings.EMAIL_TIMEOUT}")
-                    
-                    # Try sending with a shorter timeout first
-                    email_message.send(fail_silently=False)
-                    print("Email sent successfully")
-                    
-                except (SocketTimeout, TimeoutError) as e:
-                    print(f"Connection timed out: {str(e)}")
-                    return Response({
-                        "message": "Email service is temporarily unavailable. Please try again in a few minutes.",
-                        "error": "connection_timeout"
-                    }, status=status.HTTP_503_SERVICE_UNAVAILABLE)
-                    
-                except ssl.SSLError as e:
-                    print(f"SSL Error: {str(e)}")
-                    return Response({
-                        "message": "Secure connection failed. Please contact support.",
-                        "error": "ssl_error"
-                    }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-                    
-                except Exception as e:
-                    error_msg = str(e)
-                    print(f"Failed to send email: {error_msg}")
-                    
-                    if "EMAIL_USE_TLS/EMAIL_USE_SSL" in error_msg:
-                        print("TLS/SSL configuration error detected")
-                        return Response({
-                            "message": "Email service misconfigured. Please contact support.",
-                            "error": "tls_config_error"
-                        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-                        
-                    elif "Authentication Required" in error_msg or "Authentication unsuccessful" in error_msg:
-                        print("Gmail authentication error - check app password")
-                        return Response({
-                            "message": "Email authentication failed. Please contact support.",
-                            "error": "auth_error"
-                        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-                        
-                    elif "Connection refused" in error_msg:
-                        print("Connection refused - check firewall/network")
-                        return Response({
-                            "message": "Could not connect to email service. Please try again later.",
-                            "error": "connection_refused"
-                        }, status=status.HTTP_503_SERVICE_UNAVAILABLE)
-                        
-                    # For any other unexpected errors
-                    return Response({
-                        "message": "An unexpected error occurred while sending email. Please try again.",
-                        "error": "unknown_error"
-                    }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-                
-                # Store registration data in session
-                registration_data = {
-                    'email': email,
-                    'username': serializer.validated_data['username'],
-                    'password': serializer.validated_data['password'],
-                    'password2': serializer.validated_data['password2'],
-                    'first_name': serializer.validated_data.get('first_name', ''),
-                    'last_name': serializer.validated_data.get('last_name', '')
-                }
-                request.session['registration_data'] = registration_data
-                request.session.modified = True  # Mark session as modified
-                
-                # Debug session data
-                print("Session data stored:", request.session.get('registration_data'))
-                
-                response = Response({
-                    "message": "Verification code sent to your email",
-                    "email": email
-                }, status=status.HTTP_200_OK)
-                
-                # Ensure session cookie is set
-                response.set_cookie(
-                    settings.SESSION_COOKIE_NAME,
-                    request.session.session_key,
-                    max_age=settings.SESSION_COOKIE_AGE,
-                    httponly=settings.SESSION_COOKIE_HTTPONLY,
-                    samesite=settings.SESSION_COOKIE_SAMESITE,
-                )
-                
-                return response
-                
             except Exception as e:
+                logger.exception('Unexpected error when sending verification email')
                 return Response({
-                    "message": "Failed to send verification email",
-                    "error": str(e)
+                    'message': 'An unexpected error occurred while sending email. Please try again.',
+                    'error': str(e)
                 }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+                    
+            # Store registration data in session
+            registration_data = {
+                'email': email,
+                'username': serializer.validated_data['username'],
+                'password': serializer.validated_data['password'],
+                'password2': serializer.validated_data['password2'],
+                'first_name': serializer.validated_data.get('first_name', ''),
+                'last_name': serializer.validated_data.get('last_name', '')
+            }
+            request.session['registration_data'] = registration_data
+            request.session.modified = True  # Mark session as modified
+
+            # Debug session data
+            print("Session data stored:", request.session.get('registration_data'))
+
+            response = Response({
+                "message": "Verification code sent to your email",
+                "email": email
+            }, status=status.HTTP_200_OK)
+
+            # Ensure session cookie is set
+            response.set_cookie(
+                settings.SESSION_COOKIE_NAME,
+                request.session.session_key,
+                max_age=settings.SESSION_COOKIE_AGE,
+                httponly=settings.SESSION_COOKIE_HTTPONLY,
+                samesite=settings.SESSION_COOKIE_SAMESITE,
+            )
+
+            return response
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 class LoginView(APIView):
@@ -311,20 +240,22 @@ class PasswordResetOTPView(APIView):
             'project_name': settings.PROJECT_NAME,
             'otp_code': otp_instance.otp
         }
-        html_message = render_to_string('notifications/otp_email.html', context)
 
         try:
-            email_message = EmailMessage(
-                subject,
-                html_message,
-                f'{settings.PROJECT_NAME} <{settings.EMAIL_HOST_USER}>',
-                [email]
+            sent = send_transactional_email(
+                subject=subject,
+                recipient_list=[email],
+                template_name='notifications/otp_email.html',
+                context=context,
+                from_email=getattr(settings, 'DEFAULT_FROM_EMAIL', None),
+                fail_silently=False,
             )
-            email_message.content_subtype = 'html'
-            email_message.send(fail_silently=False)
+            if not sent:
+                logging.getLogger(__name__).error('send_transactional_email returned 0 for %s', email)
+                return Response({"message": "Error sending email", "error": "send_failed"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
             return Response({"message": "OTP sent to your email"}, status=status.HTTP_200_OK)
         except Exception as e:
-            print('Error sending password reset email:', str(e))
+            logging.getLogger(__name__).exception('Error sending password reset email')
             return Response({"message": "Error sending email", "error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 class ResendOTPView(APIView):
@@ -357,25 +288,27 @@ class ResendOTPView(APIView):
             'otp_code': otp_instance.otp
         }
         
-        # Render email template
-        html_message = render_to_string(
-            'notifications/otp_email.html',
-            context
-        )
         
         try:
-            email_message = EmailMessage(
-                subject,
-                html_message,
-                settings.EMAIL_HOST_USER,
-                [email]
+            sent = send_transactional_email(
+                subject=subject,
+                recipient_list=[email],
+                template_name='notifications/otp_email.html',
+                context=context,
+                from_email=getattr(settings, 'DEFAULT_FROM_EMAIL', None),
+                fail_silently=False,
             )
-            email_message.content_subtype = "html"
-            email_message.send(fail_silently=False)
+            if not sent:
+                logging.getLogger(__name__).error('send_transactional_email returned 0 for resend OTP to %s', email)
+                return Response({
+                    "message": "Error sending verification email",
+                    "error": "send_failed"
+                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
             return Response({
                 "message": "New verification code sent"
             }, status=status.HTTP_200_OK)
         except Exception as e:
+            logging.getLogger(__name__).exception('Error sending verification email')
             return Response({
                 "message": "Error sending verification email",
                 "error": str(e)

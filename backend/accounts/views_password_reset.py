@@ -9,6 +9,8 @@ from django.contrib.auth import get_user_model
 from django.core.mail import EmailMessage
 from django.template.loader import render_to_string
 from django.conf import settings
+import logging
+from notifications.utils import send_transactional_email
 from .models import OTP
 from .serializers_password_reset import (
     RequestPasswordResetSerializer,
@@ -58,17 +60,23 @@ class RequestPasswordResetView(APIView):
             'project_name': settings.PROJECT_NAME,
             'otp_code': otp_instance.otp
         }
-        html_message = render_to_string('notifications/password_reset_email.html', context)
+    # Template will be rendered by send_transactional_email
 
         try:
-            email_message = EmailMessage(
-                subject,
-                html_message,
-                f'{settings.PROJECT_NAME} <{settings.EMAIL_HOST_USER}>',
-                [email]
+            logger = logging.getLogger(__name__)
+            sent = send_transactional_email(
+                subject=subject,
+                recipient_list=[email],
+                template_name='notifications/password_reset_email.html',
+                context=context,
+                from_email=getattr(settings, 'DEFAULT_FROM_EMAIL', None),
+                fail_silently=False,
             )
-            email_message.content_subtype = 'html'
-            email_message.send(fail_silently=False)
+            if not sent:
+                logger.error('send_transactional_email returned 0 for password reset to %s', email)
+                return Response({
+                    'message': 'Error sending email. Please try again later.'
+                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
             # Increment rate limit counter
             cache.set(rate_limit_key, request_count + 1, timeout=3600)  # 1 hour expiry
@@ -78,7 +86,7 @@ class RequestPasswordResetView(APIView):
             }, status=status.HTTP_200_OK)
 
         except Exception as e:
-            print('Error sending password reset email:', str(e))
+            logging.getLogger(__name__).exception('Error sending password reset email')
             return Response({
                 'message': 'Error sending email. Please try again later.'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
