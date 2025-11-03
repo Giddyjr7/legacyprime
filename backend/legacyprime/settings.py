@@ -81,6 +81,11 @@ CORS_ALLOW_HEADERS = [
 CORS_ALLOW_METHODS = ['DELETE', 'GET', 'OPTIONS', 'PATCH', 'POST', 'PUT']
 CORS_ALLOW_ALL_ORIGINS = False
 
+# Additional frontend origin (Vercel) used by the deployed frontend
+VERCEL_FRONTEND_ORIGIN = os.environ.get('VERCEL_FRONTEND_ORIGIN', 'https://legacyprime-frontend.vercel.app')
+if VERCEL_FRONTEND_ORIGIN and VERCEL_FRONTEND_ORIGIN not in CORS_ALLOWED_ORIGINS:
+    CORS_ALLOWED_ORIGINS.append(VERCEL_FRONTEND_ORIGIN)
+
 # --- MIDDLEWARE ---
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',
@@ -116,6 +121,8 @@ CSRF_TRUSTED_ORIGINS = [
     'http://127.0.0.1:8080',
     'https://legacyprime.onrender.com',
     'https://legacyprime.vercel.app',
+    # Add explicit Vercel frontend origin used by production frontend
+    'https://legacyprime-frontend.vercel.app',
 ]
 CSRF_USE_SESSIONS = False
 

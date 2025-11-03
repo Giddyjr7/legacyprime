@@ -18,24 +18,27 @@ class RegisterView(APIView):
     permission_classes = (permissions.AllowAny,)
 
     def post(self, request):
-        serializer = RegisterSerializer(data=request.data)
-        if serializer.is_valid():
+        try:
+            serializer = RegisterSerializer(data=request.data)
+            if not serializer.is_valid():
+                return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
             # Create inactive user
             user = serializer.save(is_active=False, is_email_verified=False)
             email = user.email
-            
+
             # Generate OTP
             otp_instance = OTP.generate_otp(email)
-            
+
             # Send OTP via email
             subject = f"{settings.PROJECT_NAME} - Email Verification"
-            
+
             # Prepare context for email template
             context = {
                 'project_name': settings.PROJECT_NAME,
                 'otp_code': otp_instance.otp
             }
-            
+
             # Send using the reusable transactional email helper which will render
             # the HTML and text templates and route through the configured backend.
             logger = logging.getLogger(__name__)
@@ -62,7 +65,7 @@ class RegisterView(APIView):
                     'message': 'An unexpected error occurred while sending email. Please try again.',
                     'error': str(e)
                 }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-                    
+
             # Store registration data in session
             registration_data = {
                 'email': email,
@@ -93,7 +96,14 @@ class RegisterView(APIView):
             )
 
             return response
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        except Exception as e:
+            logging.getLogger(__name__).exception('Unhandled exception in RegisterView.post')
+            # Return a JSON response so the frontend doesn't receive a network error
+            return Response({
+                'message': 'An unexpected error occurred during registration.',
+                'error': str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 class LoginView(APIView):
     permission_classes = (permissions.AllowAny,)

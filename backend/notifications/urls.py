@@ -31,4 +31,9 @@ def send_otp(request):
 
 urlpatterns = [
     path('send-otp/', send_otp, name='send-otp'),
+    path('debug/cors/', lambda request: JsonResponse({
+        'ok': True,
+        'origin': request.META.get('HTTP_ORIGIN'),
+        'method': request.method,
+    }), name='debug-cors'),
 ]
