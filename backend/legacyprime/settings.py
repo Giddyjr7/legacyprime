@@ -13,11 +13,12 @@ if not SECRET_KEY:
 
 DEBUG = os.environ.get('DJANGO_DEBUG', 'False').lower() == 'true'
 
-# Comprehensive ALLOWED_HOSTS configuration
+# --- ALLOWED HOSTS ---
 ALLOWED_HOSTS = [
     'localhost',
     '127.0.0.1',
-    'legacyprime.onrender.com',  # Hardcoded production domain
+    'legacyprime.onrender.com',
+    'legacyprime.vercel.app',
 ]
 
 # Add Render external hostname if available
@@ -25,13 +26,12 @@ RENDER_EXTERNAL_HOSTNAME = os.environ.get('RENDER_EXTERNAL_HOSTNAME')
 if RENDER_EXTERNAL_HOSTNAME:
     ALLOWED_HOSTS.append(RENDER_EXTERNAL_HOSTNAME)
 
-# Add any additional hosts from environment variable
+# Add extra hosts from env variable if needed
 env_hosts = os.environ.get('DJANGO_ALLOWED_HOSTS', '').split(',')
 ALLOWED_HOSTS.extend([host.strip() for host in env_hosts if host.strip()])
+ALLOWED_HOSTS = list(dict.fromkeys(ALLOWED_HOSTS))  # remove duplicates
 
-# Remove duplicates
-ALLOWED_HOSTS = list(dict.fromkeys(ALLOWED_HOSTS))
-
+# --- INSTALLED APPS ---
 INSTALLED_APPS = [
     'django.contrib.admin',
     'django.contrib.auth',
@@ -48,7 +48,7 @@ INSTALLED_APPS = [
     'notifications',
 ]
 
-# Channels configuration
+# --- CHANNELS CONFIG ---
 ASGI_APPLICATION = 'legacyprime.asgi.application'
 CHANNEL_LAYERS = {
     'default': {
@@ -56,51 +56,32 @@ CHANNEL_LAYERS = {
     }
 }
 
-# Use custom user model from accounts app
+# --- CUSTOM USER MODEL ---
 AUTH_USER_MODEL = 'accounts.User'
 
-# --- CORS settings ---
+# --- CORS SETTINGS ---
 CORS_ALLOW_CREDENTIALS = True
-
-# Hardcode the essential domains and include env variables
 BASE_ALLOWED_ORIGINS = [
     'http://localhost:8080',
     'http://127.0.0.1:8080',
     'http://localhost:5173',
     'http://127.0.0.1:5173',
-    'https://legacyprime.vercel.app',  # CRITICAL: Vercel frontend host
-    'https://legacyprime.onrender.com', # Render domain (though usually not needed here)
+    'https://legacyprime.vercel.app',
+    'https://legacyprime.onrender.com',
 ]
 
-# Add origins from environment variable
 ENV_ORIGINS = os.environ.get('CORS_ALLOWED_ORIGINS', '').split(',')
 CORS_ALLOWED_ORIGINS = list(set(BASE_ALLOWED_ORIGINS + [o.strip() for o in ENV_ORIGINS if o.strip()]))
-# --- END CORS settings ---
 
-CORS_EXPOSE_HEADERS = [
-    'content-type',
-    'x-csrftoken',
-]
+CORS_EXPOSE_HEADERS = ['content-type', 'x-csrftoken']
 CORS_ALLOW_HEADERS = [
-    'accept',
-    'accept-encoding',
-    'authorization',
-    'content-type',
-    'dnt',
-    'origin',
-    'user-agent',
-    'x-csrftoken',
-    'x-requested-with',
+    'accept', 'accept-encoding', 'authorization', 'content-type',
+    'dnt', 'origin', 'user-agent', 'x-csrftoken', 'x-requested-with'
 ]
-CORS_ALLOW_METHODS = [
-    'DELETE',
-    'GET',
-    'OPTIONS',
-    'PATCH',
-    'POST',
-    'PUT',
-]
+CORS_ALLOW_METHODS = ['DELETE', 'GET', 'OPTIONS', 'PATCH', 'POST', 'PUT']
+CORS_ALLOW_ALL_ORIGINS = False
 
+# --- MIDDLEWARE ---
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
@@ -111,52 +92,35 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
-    'legacyprime.middleware.DebugMiddleware',  # Add debug middleware
+    'legacyprime.middleware.DebugMiddleware',
 ]
 
-# Configure logging
+# --- LOGGING ---
 LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,
-    'handlers': {
-        'console': {
-            'class': 'logging.StreamHandler',
-        },
-    },
-    'root': {
-        'handlers': ['console'],
-        'level': 'INFO',
-    },
+    'handlers': {'console': {'class': 'logging.StreamHandler'}},
+    'root': {'handlers': ['console'], 'level': 'INFO'},
     'loggers': {
-        'django.request': {
-            'handlers': ['console'],
-            'level': 'INFO',
-            'propagate': False,
-        },
-        'legacyprime.middleware': {
-            'handlers': ['console'],
-            'level': 'INFO',
-            'propagate': False,
-        },
+        'django.request': {'handlers': ['console'], 'level': 'INFO', 'propagate': False},
+        'legacyprime.middleware': {'handlers': ['console'], 'level': 'INFO', 'propagate': False},
     },
 }
 
-# --- CSRF settings (CRITICAL FIX HERE) ---
+# --- CSRF SETTINGS ---
 CSRF_COOKIE_SAMESITE = 'Lax'
 CSRF_COOKIE_HTTPONLY = False
-CSRF_COOKIE_SECURE = False    # Set True in production when using HTTPS
-# CRITICAL: Include the Vercel frontend in the list of trusted origins for POST requests
+CSRF_COOKIE_SECURE = True  # Secure for HTTPS
 CSRF_TRUSTED_ORIGINS = [
     'http://localhost:8080',
     'http://127.0.0.1:8080',
     'https://legacyprime.onrender.com',
-    'https://legacyprime.vercel.app'  # <-- VERCEL HOST ADDED
+    'https://legacyprime.vercel.app',
 ]
 CSRF_USE_SESSIONS = False
-# --- END CSRF settings ---
 
+# --- TEMPLATES ---
 ROOT_URLCONF = 'legacyprime.urls'
-
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
@@ -175,14 +139,11 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'legacyprime.wsgi.application'
 
+# --- DATABASE CONFIG ---
 DATABASE_URL = os.environ.get('DATABASE_URL', '')
 if DATABASE_URL:
-    # Production: use PostgreSQL via dj_database_url
-    DATABASES = {
-        'default': dj_database_url.config(default=DATABASE_URL, conn_max_age=600)
-    }
+    DATABASES = {'default': dj_database_url.config(default=DATABASE_URL, conn_max_age=600)}
 else:
-    # Local: use SQLite
     DATABASES = {
         'default': {
             'ENGINE': 'django.db.backends.sqlite3',
@@ -190,6 +151,7 @@ else:
         }
     }
 
+# --- PASSWORD VALIDATORS ---
 AUTH_PASSWORD_VALIDATORS = [
     {'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator'},
     {'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator'},
@@ -197,56 +159,48 @@ AUTH_PASSWORD_VALIDATORS = [
     {'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator'},
 ]
 
+# --- GENERAL SETTINGS ---
 LANGUAGE_CODE = 'en-us'
 TIME_ZONE = 'UTC'
 USE_I18N = True
 USE_TZ = True
 
+# --- STATIC & MEDIA ---
 STATIC_URL = '/static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
-STATICFILES_DIRS = [
-    BASE_DIR / 'static'
-]
-
+STATICFILES_DIRS = [BASE_DIR / 'static']
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
-DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-REST_FRAMEWORK = {
-    'DEFAULT_AUTHENTICATION_CLASSES': [
-        'rest_framework.authentication.SessionAuthentication',
-    ],
-    'DEFAULT_PERMISSION_CLASSES': [
-        'rest_framework.permissions.IsAuthenticated',
-    ],
-}
-
-# Additional CORS settings for production
-CORS_ALLOW_ALL_ORIGINS = False
-
-# Media settings for uploaded files
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
-# Session Settings
+DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+# --- REST FRAMEWORK ---
+REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': ['rest_framework.authentication.SessionAuthentication'],
+    'DEFAULT_PERMISSION_CLASSES': ['rest_framework.permissions.IsAuthenticated'],
+}
+
+# --- SESSION SETTINGS ---
 SESSION_ENGINE = 'django.contrib.sessions.backends.db'
-SESSION_COOKIE_SECURE = False
+SESSION_COOKIE_SECURE = True
 SESSION_COOKIE_HTTPONLY = True
 SESSION_COOKIE_SAMESITE = 'Lax'
 SESSION_COOKIE_AGE = 7 * 24 * 60 * 60
 SESSION_EXPIRE_AT_BROWSER_CLOSE = False
 SESSION_SAVE_EVERY_REQUEST = True
 
-# Email (SMTP) - pull from env
+# --- EMAIL (SMTP) SETTINGS ---
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
 EMAIL_HOST = 'smtp.gmail.com'
-EMAIL_PORT = 465
+EMAIL_PORT = 587
+EMAIL_USE_TLS = True
+EMAIL_USE_SSL = False
 EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER', '')
 EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', '')
-EMAIL_USE_TLS = False
-EMAIL_USE_SSL = True
-DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', 'no-reply@legacyprime.com')
-EMAIL_TIMEOUT = 15
-SMTP_DEBUG_LEVEL = 1
+DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', EMAIL_HOST_USER)
+EMAIL_TIMEOUT = 20
 
-# Project name constant
+# --- PROJECT CONSTANT ---
 PROJECT_NAME = 'LegacyPrime'
