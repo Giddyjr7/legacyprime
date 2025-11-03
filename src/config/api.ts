@@ -1,7 +1,21 @@
-// Use 'localhost' to match the dev frontend origin (vite runs on http://localhost:8080)
-// This avoids cookie/host mismatches where the browser treats 'localhost' and
-// '127.0.0.1' as different origins which can prevent session cookies from being stored/sent.
-export const API_BASE_URL = 'http://localhost:8000/api';
+// Determine the API base URL based on the environment
+const getApiBaseUrl = () => {
+  // First check for explicit API URL in environment variables
+  if (import.meta.env.VITE_API_BASE_URL) {
+    return import.meta.env.VITE_API_BASE_URL;
+  }
+  
+  // Fallback to environment-based logic
+  if (import.meta.env.PROD) {
+    // Use the deployed backend URL in production
+    return 'https://legacyprime.onrender.com/api';
+  }
+  
+  // Use localhost in development
+  return 'http://localhost:8000/api';
+};
+
+export const API_BASE_URL = getApiBaseUrl();
 
 export const ENDPOINTS = {
   // Auth endpoints
