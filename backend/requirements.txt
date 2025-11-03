@@ -31,3 +31,6 @@ sentry-sdk>=1.32.0  # For error tracking
 
 # Performance and Security
 django-debug-toolbar>=4.2.0  # For development debugging
+
+# Email service
+sendgrid>=6.9.1
