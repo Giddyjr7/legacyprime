@@ -19,87 +19,116 @@ export class APIError extends Error {
   }
 }
 
+/**
+ * Helper function to retrieve a specific cookie value by name (e.g., 'csrftoken').
+ */
+const getCsrfToken = (): string | null => {
+  const name = 'csrftoken';
+  let cookieValue = null;
+  if (typeof document !== 'undefined' && document.cookie && document.cookie !== '') {
+    const cookies = document.cookie.split(';');
+    for (let i = 0; i < cookies.length; i++) {
+      const cookie = cookies[i].trim();
+      if (cookie.substring(0, name.length + 1) === (name + '=')) {
+        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+        break;
+      }
+    }
+  }
+  return cookieValue;
+};
+
+
 export const fetchApi = async <T = any>(url: string, options: FetchOptions): Promise<T> => {
   try {
-    const getCsrfToken = (): string | null => {
-      const name = 'csrftoken';
-      let cookieValue = null;
-      if (typeof document !== 'undefined' && document.cookie && document.cookie !== '') {
-        const cookies = document.cookie.split(';');
-        for (let i = 0; i < cookies.length; i++) {
-          const cookie = cookies[i].trim();
-          if (cookie.substring(0, name.length + 1) === (name + '=')) {
-            cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
-            break;
-          }
-        }
-      }
-      return cookieValue;
-    };
-
-    // Start with base headers that are always needed
-    const baseHeaders: HeadersInit = {
-      'X-Requested-With': 'XMLHttpRequest',
-      'X-CSRFToken': getCsrfToken() || '',
+    
+    const isSafeMethod = ['GET', 'HEAD', 'OPTIONS'].includes(options.method.toUpperCase());
+    
+    // Initialize headers with user-provided options
+    const headers: HeadersInit = {
+        'X-Requested-With': 'XMLHttpRequest',
+        ...(options.headers || {}),
     };
 
     // Only add Content-Type for non-FormData requests
     if (!(options.body instanceof FormData)) {
-      baseHeaders['Content-Type'] = 'application/json';
+      (headers as Record<string, string>)['Content-Type'] = 'application/json';
     }
 
-    const headers: HeadersInit = {
-      ...baseHeaders,
-      ...(options.headers || {}),
-    };
+    // CRITICAL FIX: Only include X-CSRFToken for non-safe methods (POST, PUT, DELETE, etc.)
+    if (!isSafeMethod) {
+      const csrfToken = getCsrfToken();
+      if (csrfToken) {
+        (headers as Record<string, string>)['X-CSRFToken'] = csrfToken;
+      } else {
+        // Log a warning, but often a preceding GET to /api/accounts/csrf/ ensures this is present
+        console.warn('CSRF token not found for non-safe method on endpoint:', url);
+      }
+    }
+
 
     const config: RequestInit = {
       ...options,
       headers,
+      // CRITICAL: Must be 'include' for cross-site cookie transmission
       credentials: 'include',
-      mode: 'cors',
+      // 'cors' is fine, but 'omit' is the default and sufficient with credentials: 'include'
+      mode: 'cors', 
     };
 
-    // Only JSON stringify if not FormData
+    // Only JSON stringify if not FormData and body exists
     if (options.body && typeof options.body === 'object' && !(options.body instanceof FormData)) {
       config.body = JSON.stringify(options.body);
+    } else {
+      config.body = options.body;
     }
 
     const response = await fetch(url, config);
     
     // Handle 204 No Content
     if (response.status === 204) {
-      return null;
+      return null as T;
     }
 
-    const data = await response.json();
+    // Attempt to read data as JSON for both success and error paths
+    let data: any = null;
+    try {
+        data = await response.json();
+    } catch (e) {
+        // If it fails to parse JSON, assume success means no body or error means plain text
+        if (!response.ok) {
+            data = await response.text();
+        }
+    }
+
 
     if (!response.ok) {
       // Try to extract a useful error message from common DRF response shapes.
-      let errorMessage = 'Something went wrong';
+      let errorMessage = `API Error: ${response.status} ${response.statusText}`;
 
       if (data) {
         if (typeof data === 'string') {
           errorMessage = data;
         } else if (typeof data === 'object') {
-          // DRF returns field->list errors, e.g. { "current_password": ["..."] }
-          const firstEntry = Object.entries(data)[0];
-          if (firstEntry) {
-            const [, val] = firstEntry;
-            if (Array.isArray(val) && val.length > 0) {
-              errorMessage = val[0];
-            } else if (typeof val === 'string') {
-              errorMessage = val;
+            // Check for common DRF errors
+            if (data.detail) {
+                errorMessage = data.detail;
             } else if (data.message) {
-              errorMessage = data.message;
-            } else if (data.detail) {
-              errorMessage = data.detail;
+                errorMessage = data.message;
+            } else {
+                // Get the first error from the fields
+                const firstEntry = Object.entries(data)[0];
+                if (firstEntry) {
+                    const [key, val] = firstEntry;
+                    if (Array.isArray(val) && val.length > 0) {
+                        errorMessage = `${key}: ${val[0]}`;
+                    } else if (typeof val === 'string') {
+                        errorMessage = val;
+                    } else if (typeof val === 'object') {
+                        errorMessage = `Validation error in ${key}`;
+                    }
+                }
             }
-          } else if (data.message) {
-            errorMessage = data.message;
-          } else if (data.detail) {
-            errorMessage = data.detail;
-          }
         }
       }
 
@@ -111,7 +140,8 @@ export const fetchApi = async <T = any>(url: string, options: FetchOptions): Pro
     if (error instanceof APIError) {
       throw error;
     }
-    throw new APIError('Network error', 500);
+    // For network errors
+    throw new APIError('Network error or request failed to complete', 500);
   }
 };
 
