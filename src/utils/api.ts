@@ -21,27 +21,19 @@ export class APIError extends Error {
 
 /**
  * Helper function to retrieve a specific cookie value by name (e.g., 'csrftoken').
- * FINAL REVISION: Ensures reliable parsing by aggressively trimming and normalizing.
+ * FINAL REVISION: Uses a Regex for bulletproof, reliable parsing of the csrftoken value.
  */
 const getCsrfToken = (): string | null => {
-  const name = 'csrftoken';
-  let cookieValue = null;
-  if (typeof document !== 'undefined' && document.cookie && document.cookie !== '') {
-    const cookies = document.cookie.split(';');
-    for (let i = 0; i < cookies.length; i++) {
-      // Step 1: Trim all whitespace from the start/end of the cookie chunk
-      let cookie = cookies[i].trim(); 
-      
-      // Step 2: Normalize the name=value format for comparison
-      // The cookie should look like "csrftoken=VALUE"
-      if (cookie.startsWith(name + '=')) {
-        // Step 3: Extract and decode the value
-        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
-        break;
-      }
-    }
+  if (typeof document === 'undefined' || !document.cookie) return null;
+  
+  // Use a regular expression to find the csrftoken and capture its value
+  const cookieMatch = document.cookie.match(/csrftoken=([^;]+)/);
+  
+  if (cookieMatch && cookieMatch[1]) {
+    // cookieMatch[1] holds the captured value
+    return decodeURIComponent(cookieMatch[1]);
   }
-  return cookieValue;
+  return null;
 };
 
 
