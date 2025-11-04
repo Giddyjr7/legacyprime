@@ -2,6 +2,7 @@ import os
 from pathlib import Path
 from dotenv import load_dotenv
 import dj_database_url
+from datetime import timedelta 
 
 load_dotenv()
 
@@ -11,7 +12,11 @@ SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY')
 if not SECRET_KEY:
     raise ValueError("No DJANGO_SECRET_KEY set in environment")
 
+# Set DEBUG based on environment variable, defaults to False for safety
 DEBUG = os.environ.get('DJANGO_DEBUG', 'False').lower() == 'true'
+
+# Determine if we are running in a production-like environment (DEBUG is False)
+IS_PRODUCTION = not DEBUG 
 
 # --- ALLOWED HOSTS ---
 ALLOWED_HOSTS = [
@@ -29,7 +34,7 @@ if RENDER_EXTERNAL_HOSTNAME:
 # Add extra hosts from env variable if needed
 env_hosts = os.environ.get('DJANGO_ALLOWED_HOSTS', '').split(',')
 ALLOWED_HOSTS.extend([host.strip() for host in env_hosts if host.strip()])
-ALLOWED_HOSTS = list(dict.fromkeys(ALLOWED_HOSTS))  # remove duplicates
+ALLOWED_HOSTS = list(dict.fromkeys(ALLOWED_HOSTS))
 
 # --- INSTALLED APPS ---
 INSTALLED_APPS = [
@@ -73,14 +78,6 @@ BASE_ALLOWED_ORIGINS = [
 ENV_ORIGINS = os.environ.get('CORS_ALLOWED_ORIGINS', '').split(',')
 CORS_ALLOWED_ORIGINS = list(set(BASE_ALLOWED_ORIGINS + [o.strip() for o in ENV_ORIGINS if o.strip()]))
 
-CORS_EXPOSE_HEADERS = ['content-type', 'x-csrftoken']
-CORS_ALLOW_HEADERS = [
-    'accept', 'accept-encoding', 'authorization', 'content-type',
-    'dnt', 'origin', 'user-agent', 'x-csrftoken', 'x-requested-with'
-]
-CORS_ALLOW_METHODS = ['DELETE', 'GET', 'OPTIONS', 'PATCH', 'POST', 'PUT']
-CORS_ALLOW_ALL_ORIGINS = False
-
 # Additional frontend origin (Vercel) used by the deployed frontend
 VERCEL_FRONTEND_ORIGIN = os.environ.get('VERCEL_FRONTEND_ORIGIN', 'https://legacyprime-frontend.vercel.app')
 if VERCEL_FRONTEND_ORIGIN and VERCEL_FRONTEND_ORIGIN not in CORS_ALLOWED_ORIGINS:
@@ -100,33 +97,47 @@ MIDDLEWARE = [
     'legacyprime.middleware.DebugMiddleware',
 ]
 
-# --- LOGGING ---
-LOGGING = {
-    'version': 1,
-    'disable_existing_loggers': False,
-    'handlers': {'console': {'class': 'logging.StreamHandler'}},
-    'root': {'handlers': ['console'], 'level': 'INFO'},
-    'loggers': {
-        'django.request': {'handlers': ['console'], 'level': 'INFO', 'propagate': False},
-        'legacyprime.middleware': {'handlers': ['console'], 'level': 'INFO', 'propagate': False},
-    },
-}
+# --- SESSION (COOKIE) SETTINGS - LOCAL FIX APPLIED HERE ---
+SESSION_ENGINE = 'django.contrib.sessions.backends.db'
+# True in prod (HTTPS), False locally (HTTP)
+SESSION_COOKIE_SECURE = IS_PRODUCTION  
+SESSION_COOKIE_HTTPONLY = True
+
+# CRITICAL FIX: SameSite=None for prod cross-site, Lax for local same-site
+SESSION_COOKIE_SAMESITE = 'None' if IS_PRODUCTION else 'Lax'
+SESSION_COOKIE_AGE = 7 * 24 * 60 * 60 # 1 week
+SESSION_EXPIRE_AT_BROWSER_CLOSE = False
+SESSION_SAVE_EVERY_REQUEST = True
+
+# NEW FIX: Only set a specific domain in production. 
+# In debug mode (localhost), we leave the domain unset, letting the browser default to 
+# the current domain/IP (127.0.0.1 or localhost), which is usually safer.
+if IS_PRODUCTION:
+    # Explicitly set the domain the session cookie is valid for in production (Render domain)
+    SESSION_COOKIE_DOMAIN = os.environ.get('RENDER_EXTERNAL_HOSTNAME', '.legacyprime.onrender.com') 
+else:
+    # IMPORTANT: Setting this to None/False tells Django not to include the Domain attribute, 
+    # which is ideal for localhost.
+    SESSION_COOKIE_DOMAIN = None 
+
 
 # --- CSRF SETTINGS ---
-CSRF_COOKIE_SAMESITE = 'Lax'
+# CRITICAL FIX: Cookies must be SameSite=None and Secure=True for cross-site (Vercel <-> Render)
+CSRF_COOKIE_SAMESITE = 'None' if IS_PRODUCTION else 'Lax'
 CSRF_COOKIE_HTTPONLY = False
-CSRF_COOKIE_SECURE = True  # Secure for HTTPS
+CSRF_COOKIE_SECURE = IS_PRODUCTION  # True in prod (HTTPS), False locally (HTTP)
 CSRF_TRUSTED_ORIGINS = [
     'http://localhost:8080',
     'http://127.0.0.1:8080',
     'https://legacyprime.onrender.com',
     'https://legacyprime.vercel.app',
     # Add explicit Vercel frontend origin used by production frontend
-    'https://legacyprime-frontend.vercel.app',
+    VERCEL_FRONTEND_ORIGIN,
 ]
 CSRF_USE_SESSIONS = False
 
-# --- TEMPLATES ---
+
+# --- TEMPLATES, WSGI, STATIC, MEDIA, ETC. (Standard Django) ---
 ROOT_URLCONF = 'legacyprime.urls'
 TEMPLATES = [
     {
@@ -189,15 +200,6 @@ REST_FRAMEWORK = {
     'DEFAULT_PERMISSION_CLASSES': ['rest_framework.permissions.IsAuthenticated'],
 }
 
-# --- SESSION SETTINGS ---
-SESSION_ENGINE = 'django.contrib.sessions.backends.db'
-SESSION_COOKIE_SECURE = True
-SESSION_COOKIE_HTTPONLY = True
-SESSION_COOKIE_SAMESITE = 'Lax'
-SESSION_COOKIE_AGE = 7 * 24 * 60 * 60
-SESSION_EXPIRE_AT_BROWSER_CLOSE = False
-SESSION_SAVE_EVERY_REQUEST = True
-
 # --- EMAIL SETTINGS (SendGrid) ---
 EMAIL_BACKEND = os.environ.get(
     'EMAIL_BACKEND',
@@ -205,12 +207,8 @@ EMAIL_BACKEND = os.environ.get(
 )
 EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER', 'apikey')
 DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', '')
-EMAIL_HOST_PASSWORD = os.environ.get('SENDGRID_API_KEY', '')  # SendGrid API Key
-
-# Enable email debug logging
+EMAIL_HOST_PASSWORD = os.environ.get('SENDGRID_API_KEY', '') 
 EMAIL_DEBUG = DEBUG
-
-# --- PROJECT CONSTANT ---
 PROJECT_NAME = 'LegacyPrime'
 
 # --- LOGGING CONFIGURATION ---
