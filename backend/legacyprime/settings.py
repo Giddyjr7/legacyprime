@@ -18,18 +18,20 @@ DEBUG = os.environ.get('DJANGO_DEBUG', 'False').lower() == 'true'
 # Determine if we are running in a production-like environment (DEBUG is False)
 IS_PRODUCTION = not DEBUG 
 
+# --- RENDER/VERCEL ORIGINS SETUP ---
+# Get external hostnames from environment or use sensible defaults
+RENDER_EXTERNAL_HOSTNAME = os.environ.get('RENDER_EXTERNAL_HOSTNAME', 'legacyprime.onrender.com')
+VERCEL_FRONTEND_ORIGIN = os.environ.get('VERCEL_FRONTEND_ORIGIN', 'https://legacyprime-frontend.vercel.app')
+VERCEL_ORIGIN_NO_PROTOCOL = VERCEL_FRONTEND_ORIGIN.replace("https://", "").replace("http://", "")
+RENDER_DOMAIN_NO_PROTOCOL = RENDER_EXTERNAL_HOSTNAME.replace("https://", "").replace("http://", "")
+
 # --- ALLOWED HOSTS ---
 ALLOWED_HOSTS = [
     'localhost',
     '127.0.0.1',
-    'legacyprime.onrender.com',
-    'legacyprime.vercel.app',
+    RENDER_DOMAIN_NO_PROTOCOL, # legacyprime.onrender.com
+    VERCEL_ORIGIN_NO_PROTOCOL, # legacyprime-frontend.vercel.app
 ]
-
-# Add Render external hostname if available
-RENDER_EXTERNAL_HOSTNAME = os.environ.get('RENDER_EXTERNAL_HOSTNAME')
-if RENDER_EXTERNAL_HOSTNAME:
-    ALLOWED_HOSTS.append(RENDER_EXTERNAL_HOSTNAME)
 
 # Add extra hosts from env variable if needed
 env_hosts = os.environ.get('DJANGO_ALLOWED_HOSTS', '').split(',')
@@ -71,21 +73,40 @@ BASE_ALLOWED_ORIGINS = [
     'http://127.0.0.1:8080',
     'http://localhost:5173',
     'http://127.0.0.1:5173',
-    'https://legacyprime.vercel.app',
-    'https://legacyprime.onrender.com',
+    # Production origins
+    f'https://{RENDER_DOMAIN_NO_PROTOCOL}',
+    VERCEL_FRONTEND_ORIGIN,
 ]
 
 ENV_ORIGINS = os.environ.get('CORS_ALLOWED_ORIGINS', '').split(',')
 CORS_ALLOWED_ORIGINS = list(set(BASE_ALLOWED_ORIGINS + [o.strip() for o in ENV_ORIGINS if o.strip()]))
 
-# Additional frontend origin (Vercel) used by the deployed frontend
-VERCEL_FRONTEND_ORIGIN = os.environ.get('VERCEL_FRONTEND_ORIGIN', 'https://legacyprime-frontend.vercel.app')
-if VERCEL_FRONTEND_ORIGIN and VERCEL_FRONTEND_ORIGIN not in CORS_ALLOWED_ORIGINS:
-    CORS_ALLOWED_ORIGINS.append(VERCEL_FRONTEND_ORIGIN)
+# CRITICAL FIX 4: Explicitly define allowed methods and headers for the CORS preflight
+# This is often the missing piece causing "preflight failed" errors.
+CORS_ALLOW_HEADERS = [
+    'accept',
+    'accept-encoding',
+    'authorization',
+    'content-type',
+    'dnt',
+    'origin',
+    'user-agent',
+    'x-csrftoken', # Must be explicitly allowed for the frontend to send it
+    'x-requested-with',
+]
+CORS_ALLOW_METHODS = [
+    'DELETE',
+    'GET',
+    'OPTIONS', # Essential for the preflight request
+    'PATCH',
+    'POST',
+    'PUT',
+]
 
 # --- MIDDLEWARE ---
 MIDDLEWARE = [
-    'corsheaders.middleware.CorsMiddleware',
+    # CORS must be very high up
+    'corsheaders.middleware.CorsMiddleware', 
     'django.middleware.security.SecurityMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
@@ -94,48 +115,62 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
-    'legacyprime.middleware.DebugMiddleware',
+    # Assuming this is your custom debug middleware
+    'legacyprime.middleware.DebugMiddleware', 
 ]
 
-# --- SESSION (COOKIE) SETTINGS - LOCAL FIX APPLIED HERE ---
+# --- SESSION (COOKIE) SETTINGS ---
 SESSION_ENGINE = 'django.contrib.sessions.backends.db'
-# True in prod (HTTPS), False locally (HTTP)
-SESSION_COOKIE_SECURE = IS_PRODUCTION  
-SESSION_COOKIE_HTTPONLY = True
-
-# CRITICAL FIX: SameSite=None for prod cross-site, Lax for local same-site
-SESSION_COOKIE_SAMESITE = 'None' if IS_PRODUCTION else 'Lax'
+SESSION_COOKIE_HTTPONLY = True # Session cookie should remain HTTPOnly for security
 SESSION_COOKIE_AGE = 7 * 24 * 60 * 60 # 1 week
 SESSION_EXPIRE_AT_BROWSER_CLOSE = False
 SESSION_SAVE_EVERY_REQUEST = True
 
-# NEW FIX: Only set a specific domain in production. 
-# In debug mode (localhost), we leave the domain unset, letting the browser default to 
-# the current domain/IP (127.0.0.1 or localhost), which is usually safer.
 if IS_PRODUCTION:
-    # Explicitly set the domain the session cookie is valid for in production (Render domain)
-    SESSION_COOKIE_DOMAIN = os.environ.get('RENDER_EXTERNAL_HOSTNAME', '.legacyprime.onrender.com') 
+    # CRITICAL: Must be 'None' for cross-site
+    SESSION_COOKIE_SAMESITE = 'None' 
+    # CRITICAL: Must be True when SameSite='None' (requires HTTPS)
+    SESSION_COOKIE_SECURE = True 
+    
+    # CRITICAL FIX 1: Set the domain to the exact Render hostname 
+    SESSION_COOKIE_DOMAIN = RENDER_EXTERNAL_HOSTNAME
 else:
-    # IMPORTANT: Setting this to None/False tells Django not to include the Domain attribute, 
-    # which is ideal for localhost.
+    # Local development settings (friendly to HTTP)
+    SESSION_COOKIE_SAMESITE = 'Lax'
+    SESSION_COOKIE_SECURE = False
     SESSION_COOKIE_DOMAIN = None 
 
 
 # --- CSRF SETTINGS ---
-# CRITICAL FIX: Cookies must be SameSite=None and Secure=True for cross-site (Vercel <-> Render)
-CSRF_COOKIE_SAMESITE = 'None' if IS_PRODUCTION else 'Lax'
+# CRITICAL FIX 2: Explicitly set CSRF_COOKIE_HTTPONLY to False
+# This MUST be false so your frontend JavaScript can read the token and put it in the header.
 CSRF_COOKIE_HTTPONLY = False
-CSRF_COOKIE_SECURE = IS_PRODUCTION  # True in prod (HTTPS), False locally (HTTP)
-CSRF_TRUSTED_ORIGINS = [
-    'http://localhost:8080',
-    'http://127.0.0.1:8080',
-    'https://legacyprime.onrender.com',
-    'https://legacyprime.vercel.app',
-    # Add explicit Vercel frontend origin used by production frontend
-    VERCEL_FRONTEND_ORIGIN,
-]
 CSRF_USE_SESSIONS = False
 
+if IS_PRODUCTION:
+    # CRITICAL: Must be 'None' for cross-site
+    CSRF_COOKIE_SAMESITE = 'None'
+    # CRITICAL: Must be True when SameSite='None' (requires HTTPS)
+    CSRF_COOKIE_SECURE = True
+    
+    # CRITICAL FIX 3: Dynamic and robust CSRF Trusted Origins list
+    CSRF_TRUSTED_ORIGINS = [
+        # Trust your Vercel frontend (both HTTPS and HTTP in case of strange Referer headers)
+        f'https://{VERCEL_ORIGIN_NO_PROTOCOL}',
+        f'http://{VERCEL_ORIGIN_NO_PROTOCOL}',
+        # Trust your own Render backend domain
+        f'https://{RENDER_DOMAIN_NO_PROTOCOL}',
+    ]
+else:
+    # Local development settings (friendly to HTTP)
+    CSRF_COOKIE_SAMESITE = 'Lax'
+    CSRF_COOKIE_SECURE = False
+    CSRF_TRUSTED_ORIGINS = [
+        'http://localhost:8080',
+        'http://127.0.0.1:8080',
+        'http://localhost:5173',
+        'http://127.0.0.1:5173',
+    ]
 
 # --- TEMPLATES, WSGI, STATIC, MEDIA, ETC. (Standard Django) ---
 ROOT_URLCONF = 'legacyprime.urls'
