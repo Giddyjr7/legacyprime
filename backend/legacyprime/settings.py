@@ -127,12 +127,11 @@ SESSION_EXPIRE_AT_BROWSER_CLOSE = False
 SESSION_SAVE_EVERY_REQUEST = True
 
 if IS_PRODUCTION:
-    # CRITICAL: Must be 'None' for cross-site
-    SESSION_COOKIE_SAMESITE = 'None' 
-    # CRITICAL: Must be True when SameSite='None' (requires HTTPS)
-    SESSION_COOKIE_SECURE = True 
-    
-    # CRITICAL FIX 1: Set the domain to the exact Render hostname 
+    # CRITICAL: Must be None for cross-site
+    SESSION_COOKIE_SAMESITE = None
+    # CRITICAL: Must be True when SameSite=None (requires HTTPS)
+    SESSION_COOKIE_SECURE = True
+    # CRITICAL FIX 1: Set the domain to the exact Render hostname
     SESSION_COOKIE_DOMAIN = RENDER_EXTERNAL_HOSTNAME
     # FINAL FIX: Ensure session cookie is set to the root path
     SESSION_COOKIE_PATH = '/'
@@ -150,13 +149,12 @@ CSRF_COOKIE_HTTPONLY = False
 CSRF_USE_SESSIONS = False
 
 if IS_PRODUCTION:
-    # CRITICAL: Must be 'None' for cross-site
-    CSRF_COOKIE_SAMESITE = 'None'
-    # CRITICAL: Must be True when SameSite='None' (requires HTTPS)
+    # CRITICAL: Must be None for cross-site
+    CSRF_COOKIE_SAMESITE = None
+    # CRITICAL: Must be True when SameSite=None (requires HTTPS)
     CSRF_COOKIE_SECURE = True
     # FINAL FIX: Ensure CSRF cookie is available on all paths
     CSRF_COOKIE_PATH = '/'
-    
     # CRITICAL FIX 3: Dynamic and robust CSRF Trusted Origins list
     CSRF_TRUSTED_ORIGINS = [
         # Trust your Vercel frontend (both HTTPS and HTTP in case of strange Referer headers)
