@@ -134,6 +134,8 @@ if IS_PRODUCTION:
     
     # CRITICAL FIX 1: Set the domain to the exact Render hostname 
     SESSION_COOKIE_DOMAIN = RENDER_EXTERNAL_HOSTNAME
+    # FINAL FIX: Ensure session cookie is set to the root path
+    SESSION_COOKIE_PATH = '/'
 else:
     # Local development settings (friendly to HTTP)
     SESSION_COOKIE_SAMESITE = 'Lax'
@@ -152,6 +154,8 @@ if IS_PRODUCTION:
     CSRF_COOKIE_SAMESITE = 'None'
     # CRITICAL: Must be True when SameSite='None' (requires HTTPS)
     CSRF_COOKIE_SECURE = True
+    # FINAL FIX: Ensure CSRF cookie is available on all paths
+    CSRF_COOKIE_PATH = '/'
     
     # CRITICAL FIX 3: Dynamic and robust CSRF Trusted Origins list
     CSRF_TRUSTED_ORIGINS = [

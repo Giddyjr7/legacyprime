@@ -1,162 +1,149 @@
-type RequestMethod = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH';
+import axios, { AxiosInstance } from 'axios';
 
-interface FetchOptions extends RequestInit {
-  method: RequestMethod;
-  headers?: HeadersInit;
-  body?: any;
-  credentials?: RequestCredentials;
-}
-
-export class APIError extends Error {
-  status: number;
-  data?: any;
-  
-  constructor(message: string, status: number, data?: any) {
-    super(message);
-    this.status = status;
-    this.name = 'APIError';
-    this.data = data;
-  }
-}
+// --- 1. Custom API Error Class ---
 
 /**
- * Helper function to retrieve a specific cookie value by name (e.g., 'csrftoken').
- * FINAL REVISION: Uses a Regex for bulletproof, reliable parsing of the csrftoken value.
+ * Custom error class for handling API response errors with structured data.
  */
-const getCsrfToken = (): string | null => {
-  if (typeof document === 'undefined' || !document.cookie) return null;
-  
-  // Use a regular expression to find the csrftoken and capture its value
-  const cookieMatch = document.cookie.match(/csrftoken=([^;]+)/);
-  
-  if (cookieMatch && cookieMatch[1]) {
-    // cookieMatch[1] holds the captured value
-    return decodeURIComponent(cookieMatch[1]);
-  }
-  return null;
+export class APIError extends Error {
+    public status: number;
+    public data: any; // Use 'any' to capture different potential error response bodies
+
+    constructor(message: string, status: number, data: any) {
+        super(message);
+        this.status = status;
+        this.data = data;
+        this.name = 'APIError';
+
+        // Set the prototype explicitly.
+        Object.setPrototypeOf(this, APIError.prototype);
+    }
+}
+
+// --- 2. Base URL Configuration ---
+
+// Determine the API base URL based on the environment
+const getApiBaseUrl = () => {
+    // First check for explicit API URL in environment variables
+    if (import.meta.env.VITE_API_BASE_URL) {
+        return import.meta.env.VITE_API_BASE_URL;
+    }
+
+    // Fallback to environment-based logic
+    if (import.meta.env.PROD) {
+        // Use the deployed backend URL in production
+        return 'https://legacyprime.onrender.com/api';
+    }
+
+    // Use localhost in development
+    return 'http://localhost:8000/api';
 };
 
+export const API_BASE_URL = getApiBaseUrl();
 
-export const fetchApi = async <T = any>(url: string, options: FetchOptions): Promise<T> => {
-  try {
-    
-    const isSafeMethod = ['GET', 'HEAD', 'OPTIONS'].includes(options.method.toUpperCase());
-    
-    // Initialize headers with user-provided options
-    const headers: HeadersInit = {
-        'X-Requested-With': 'XMLHttpRequest',
-        ...(options.headers || {}),
-    };
+// --- 3. Endpoint Definitions ---
 
-    // Only add Content-Type for non-FormData requests
-    if (!(options.body instanceof FormData)) {
-      (headers as Record<string, string>)['Content-Type'] = 'application/json';
-    }
+export const ENDPOINTS = {
+    // Auth endpoints
+    LOGIN: `${API_BASE_URL}/accounts/login/`,
+    REGISTER: `${API_BASE_URL}/accounts/register/`,
+    LOGOUT: `${API_BASE_URL}/accounts/logout/`,
+    PROFILE: `${API_BASE_URL}/accounts/profile/`,
+    VERIFY_OTP: `${API_BASE_URL}/accounts/verify-otp/`,
+    RESEND_OTP: `${API_BASE_URL}/accounts/resend-otp/`,
+    REQUEST_PASSWORD_RESET: `${API_BASE_URL}/accounts/request-password-reset/`,
+    VERIFY_PASSWORD_RESET_OTP: `${API_BASE_URL}/accounts/verify-password-reset-otp/`,
+    SET_NEW_PASSWORD: `${API_BASE_URL}/accounts/set-new-password/`,
+    CSRF: `${API_BASE_URL}/accounts/csrf/`,
 
-    // CRITICAL FIX: Only include X-CSRFToken for non-safe methods (POST, PUT, DELETE, etc.)
-    if (!isSafeMethod) {
-      const csrfToken = getCsrfToken();
-      if (csrfToken) {
-        (headers as Record<string, string>)['X-CSRFToken'] = csrfToken;
-      } else {
-        // Log a warning, but often a preceding GET to /api/accounts/csrf/ ensures this is present
-        console.warn('CSRF token not found for non-safe method on endpoint:', url);
-      }
-    }
+    // Dashboard
+    DASHBOARD_SUMMARY: `${API_BASE_URL}/transactions/dashboard/summary/`,
+    DASHBOARD_PERFORMANCE: `${API_BASE_URL}/transactions/dashboard/performance/`,
 
+    // Wallet
+    WALLET_DEPOSIT_REQUEST: `${API_BASE_URL}/wallet/deposit/request/`,
+    WALLET_DEPOSIT_CONFIRM: (id: number) => `${API_BASE_URL}/wallet/deposit/${id}/confirm/`,
+    WALLET_WITHDRAW: `${API_BASE_URL}/wallet/withdraw/`,
+    WALLET_WITHDRAWAL_ACCOUNTS: `${API_BASE_URL}/wallet/withdrawal-accounts/`,
 
-    const config: RequestInit = {
-      ...options,
-      headers,
-      // CRITICAL: Must be 'include' for cross-site cookie transmission
-      credentials: 'include',
-      // 'cors' is fine, but 'omit' is the default and sufficient with credentials: 'include'
-      mode: 'cors', 
-    };
+    // Transaction endpoints
+    TRANSACTIONS: `${API_BASE_URL}/transactions/`,
+    CREATE_TRANSACTION: `${API_BASE_URL}/transactions/create/`,
 
-    // Only JSON stringify if not FormData and body exists
-    if (options.body && typeof options.body === 'object' && !(options.body instanceof FormData)) {
-      config.body = JSON.stringify(options.body);
-    } else {
-      config.body = options.body;
-    }
+    // Notification endpoints
+    NOTIFICATIONS: `${API_BASE_URL}/notifications/`,
+    MARK_NOTIFICATION_READ: (id: string) => `${API_BASE_URL}/notifications/${id}/mark-read/`,
 
-    const response = await fetch(url, config);
-    
-    // Handle 204 No Content
-    if (response.status === 204) {
-      return null as T;
-    }
+    // Account actions
+    CHANGE_PASSWORD: `${API_BASE_URL}/accounts/change-password/`,
+};
 
-    // Attempt to read data as JSON for both success and error paths
-    let data: any = null;
-    try {
-        data = await response.json();
-    } catch (e) {
-        // If it fails to parse JSON, assume success means no body or error means plain text
-        if (!response.ok) {
-            data = await response.text();
+// --- 4. CSRF Cookie Reader Utility ---
+
+/**
+ * Extracts the value of the 'csrftoken' cookie from document.cookie.
+ * @returns The CSRF token string or null if not found.
+ */
+function getCsrfToken(): string | null {
+    const cookies = document.cookie.split(';');
+    for (let i = 0; i < cookies.length; i++) {
+        let cookie = cookies[i].trim();
+        // Check if this cookie starts with 'csrftoken='
+        if (cookie.startsWith('csrftoken=')) {
+            // Return the value part of the cookie
+            return cookie.substring('csrftoken='.length, cookie.length);
         }
     }
+    return null;
+}
 
+// --- 5. Axios Instance Configuration ---
 
-    if (!response.ok) {
-      // Try to extract a useful error message from common DRF response shapes.
-      let errorMessage = `API Error: ${response.status} ${response.statusText}`;
+// Create an Axios instance configured for Django/DRF
+export const api: AxiosInstance = axios.create({
+    baseURL: API_BASE_URL,
+    // CRITICAL: Tells the browser to include cookies (sessionid and csrftoken) 
+    // in cross-site requests. This is mandatory for your setup.
+    withCredentials: true,
+});
 
-      if (data) {
-        if (typeof data === 'string') {
-          errorMessage = data;
-        } else if (typeof data === 'object') {
-            // Check for common DRF errors
-            if (data.detail) {
-                errorMessage = data.detail;
-            } else if (data.message) {
-                errorMessage = data.message;
-            } else {
-                // Get the first error from the fields
-                const firstEntry = Object.entries(data)[0];
-                if (firstEntry) {
-                    const [key, val] = firstEntry;
-                    if (Array.isArray(val) && val.length > 0) {
-                        errorMessage = `${key}: ${val[0]}`;
-                    } else if (typeof val === 'string') {
-                        errorMessage = val;
-                    } else if (typeof val === 'object') {
-                        errorMessage = `Validation error in ${key}`;
-                    }
-                }
-            }
+// --- 6. Request Interceptor to attach CSRF Token ---
+
+// Define "safe" methods (which don't require the CSRF token)
+const SAFE_METHODS = ['GET', 'HEAD', 'OPTIONS', 'TRACE'];
+
+api.interceptors.request.use((config) => {
+    // Only attempt to attach the CSRF token for non-safe methods (POST, PUT, DELETE, etc.)
+    if (config.method && !SAFE_METHODS.includes(config.method.toUpperCase())) {
+        const csrfToken = getCsrfToken();
+        
+        if (csrfToken) {
+            // Attach the token to the 'X-CSRFToken' header
+            config.headers['X-CSRFToken'] = csrfToken;
+        } else {
+            // This is a critical debugging point
+            console.error('CSRF Token not found in cookies for non-safe method:', config.url);
         }
-      }
-
-      throw new APIError(errorMessage, response.status, data);
     }
+    return config;
+}, (error) => {
+    return Promise.reject(error);
+});
 
-    return data;
-  } catch (error) {
-    if (error instanceof APIError) {
-      throw error;
+// --- 7. Response Interceptor for Error Handling (Optional but Recommended) ---
+// This automatically wraps all Axios errors in our custom APIError for predictable handling
+api.interceptors.response.use(
+    (response) => response,
+    (error) => {
+        if (axios.isAxiosError(error) && error.response) {
+            // Convert Axios error to our custom APIError
+            throw new APIError(
+                error.message,
+                error.response.status,
+                error.response.data
+            );
+        }
+        // For network errors or other non-response errors, re-throw the original error
+        return Promise.reject(error);
     }
-    // For network errors
-    throw new APIError('Network error or request failed to complete', 500);
-  }
-};
-
-// Convenience methods
-export const api = {
-  get: <T = any>(url: string, options: Omit<FetchOptions, 'method'> = {}) => 
-    fetchApi<T>(url, { ...options, method: 'GET' }),
-    
-  post: <T = any>(url: string, data?: any, options: Omit<FetchOptions, 'method' | 'body'> = {}) => 
-    fetchApi<T>(url, { ...options, method: 'POST', body: data }),
-    
-  put: <T = any>(url: string, data?: any, options: Omit<FetchOptions, 'method' | 'body'> = {}) => 
-    fetchApi<T>(url, { ...options, method: 'PUT', body: data }),
-    
-  patch: <T = any>(url: string, data?: any, options: Omit<FetchOptions, 'method' | 'body'> = {}) => 
-    fetchApi<T>(url, { ...options, method: 'PATCH', body: data }),
-    
-  delete: <T = any>(url: string, options: Omit<FetchOptions, 'method'> = {}) => 
-    fetchApi<T>(url, { ...options, method: 'DELETE' }),
-};
+);
