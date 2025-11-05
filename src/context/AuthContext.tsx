@@ -46,7 +46,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const checkAuth = async () => {
         try {
             console.log('Checking authentication...');
-            // Ensure we have a CSRF cookie set (backend will set csrftoken cookie)
+            // Always ensure CSRF cookie is set first
             try {
                 await api.get(ENDPOINTS.CSRF);
                 console.log('CSRF cookie ensured');
@@ -54,15 +54,14 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                 console.log('Could not ensure CSRF cookie before auth check', e);
             }
 
-            // The `/accounts/profile/` endpoint may return either:
-            //  - { user: { ... } }  (wrapped under `user`) OR
-            //  - { ...user fields... } (the serializer data directly)
-            // Accept both shapes for robustness across environments.
-            const userResp = await api.get<any>(ENDPOINTS.PROFILE);
-            const payload = userResp?.data;
-            const resolvedUser = payload?.user ?? payload ?? null;
-            if (resolvedUser) {
-                setUser(resolvedUser);
+            // Check if user is authenticated via profile endpoint
+            // Profile endpoint returns user data directly (not wrapped in {user: ...})
+            const response = await api.get(ENDPOINTS.PROFILE);
+            const userData = response.data;
+            
+            if (userData && userData.id) {
+                setUser(userData);
+                console.log('User authenticated:', userData.email);
             } else {
                 // No authenticated user returned
                 setUser(null);

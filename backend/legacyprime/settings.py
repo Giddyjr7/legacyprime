@@ -160,18 +160,19 @@ CSRF_COOKIE_HTTPONLY = False
 CSRF_USE_SESSIONS = False
 
 if IS_PRODUCTION:
-    # CRITICAL: Must be None for cross-site
-    # As above, CSRF cookie must explicitly use the string 'None' so the
-    # browser will allow it to be sent in cross-site requests.
+    # CRITICAL: Both cookies must have SameSite='None' for cross-site requests
+    # Using string 'None' (not Python None) to ensure browser sets attribute
     CSRF_COOKIE_SAMESITE = 'None'
-    # CRITICAL: Must be True when SameSite=None (requires HTTPS)
+    SESSION_COOKIE_SAMESITE = 'None'
+    # Both cookies must be Secure in production (HTTPS required)
     CSRF_COOKIE_SECURE = True
-    # FINAL FIX: Ensure CSRF cookie is available on all paths
+    SESSION_COOKIE_SECURE = True
+    # Both cookies available on all paths
     CSRF_COOKIE_PATH = '/'
-    # CRITICAL FIX 5: Ensure CSRF cookie domain matches backend host so the cookie
-    # is set for the correct domain and can be sent/seen by the browser when
-    # performing cross-site requests from the frontend.
+    SESSION_COOKIE_PATH = '/'
+    # Both cookies must have matching domains in production
     CSRF_COOKIE_DOMAIN = RENDER_EXTERNAL_HOSTNAME
+    SESSION_COOKIE_DOMAIN = RENDER_EXTERNAL_HOSTNAME
     # CRITICAL FIX 3: Dynamic and robust CSRF Trusted Origins list
     CSRF_TRUSTED_ORIGINS = [
         # Trust your Vercel frontend (both HTTPS and HTTP in case of strange Referer headers)

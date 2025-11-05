@@ -181,6 +181,9 @@ class LogoutView(APIView):
     permission_classes = (permissions.IsAuthenticated,)
 
     def post(self, request):
+        if not request.user.is_authenticated:
+            return Response({"message": "Not logged in"}, status=status.HTTP_400_BAD_REQUEST)
+
         # Log out server-side (this will flush the session)
         logout(request)
 
@@ -210,9 +213,12 @@ class ProfileView(APIView):
     parser_classes = (parsers.MultiPartParser, parsers.FormParser, parsers.JSONParser)
 
     def get(self, request):
-        """Get the user's profile data including profile picture URL."""
+        """Get the user's profile data including profile picture URL.
+        Returns 403 if not authenticated, profile data directly (not wrapped) if authenticated."""
+        if not request.user.is_authenticated:
+            return Response({'detail': 'Authentication required'}, status=status.HTTP_403_FORBIDDEN)
         serializer = UserProfileSerializer(request.user)
-        return Response(serializer.data)
+        return Response(serializer.data)  # Return data directly, not wrapped in {"user": ...}
 
     def put(self, request):
         """Update the user's profile data. Handles both JSON and multipart form data."""
