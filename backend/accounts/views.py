@@ -3,6 +3,7 @@ from rest_framework import status, permissions, parsers
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from django.views.decorators.csrf import ensure_csrf_cookie
+from django.middleware.csrf import get_token
 from django.utils.decorators import method_decorator
 from django.core.mail import EmailMessage
 from django.conf import settings
@@ -122,10 +123,58 @@ class LoginView(APIView):
         if serializer.is_valid():
             user = serializer.validated_data['user']
             login(request, user)
-            return Response({
+            # Generate CSRF token for the session and explicitly set cookies so
+            # cross-site frontends receive them in production (SameSite=None).
+            csrf_token = get_token(request)
+
+            response = Response({
                 "user": UserSerializer(user).data,
                 "message": "Login Successful"
             })
+
+            # Set session cookie explicitly to ensure the browser receives it
+            # in cross-site contexts (depends on SESSION_COOKIE settings).
+            session_cookie_name = getattr(settings, 'SESSION_COOKIE_NAME', 'sessionid')
+            session_cookie_domain = getattr(settings, 'SESSION_COOKIE_DOMAIN', None)
+            session_cookie_path = getattr(settings, 'SESSION_COOKIE_PATH', '/')
+            session_cookie_secure = getattr(settings, 'SESSION_COOKIE_SECURE', False)
+            session_cookie_samesite = getattr(settings, 'SESSION_COOKIE_SAMESITE', None)
+            session_cookie_age = getattr(settings, 'SESSION_COOKIE_AGE', None)
+
+            try:
+                response.set_cookie(
+                    session_cookie_name,
+                    request.session.session_key,
+                    max_age=session_cookie_age,
+                    httponly=getattr(settings, 'SESSION_COOKIE_HTTPONLY', True),
+                    samesite=session_cookie_samesite,
+                    secure=session_cookie_secure,
+                    domain=session_cookie_domain,
+                    path=session_cookie_path,
+                )
+            except Exception:
+                # best-effort: if setting cookie fails, proceed — Django may
+                # still set session cookie via middleware
+                pass
+
+            # Set CSRF cookie so frontend JS can read and attach it to headers
+            csrf_cookie_name = getattr(settings, 'CSRF_COOKIE_NAME', 'csrftoken')
+            csrf_cookie_secure = getattr(settings, 'CSRF_COOKIE_SECURE', False)
+            csrf_cookie_samesite = getattr(settings, 'CSRF_COOKIE_SAMESITE', None)
+            csrf_cookie_domain = getattr(settings, 'CSRF_COOKIE_DOMAIN', None)
+            csrf_cookie_path = getattr(settings, 'CSRF_COOKIE_PATH', '/')
+
+            response.set_cookie(
+                csrf_cookie_name,
+                csrf_token,
+                httponly=False,
+                samesite=csrf_cookie_samesite,
+                secure=csrf_cookie_secure,
+                domain=csrf_cookie_domain,
+                path=csrf_cookie_path,
+            )
+
+            return response
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 class LogoutView(APIView):
@@ -416,7 +465,32 @@ class CSRFCookieView(APIView):
     permission_classes = (permissions.AllowAny,)
 
     def get(self, request):
-        return Response(status=status.HTTP_204_NO_CONTENT)
+        # Ensure a CSRF token exists and is returned as a cookie. Using
+        # get_token guarantees Django generates a token for the session.
+        try:
+            token = get_token(request)
+        except Exception:
+            token = None
+
+        response = Response(status=status.HTTP_204_NO_CONTENT)
+        if token:
+            csrf_cookie_name = getattr(settings, 'CSRF_COOKIE_NAME', 'csrftoken')
+            csrf_cookie_secure = getattr(settings, 'CSRF_COOKIE_SECURE', False)
+            csrf_cookie_samesite = getattr(settings, 'CSRF_COOKIE_SAMESITE', None)
+            csrf_cookie_domain = getattr(settings, 'CSRF_COOKIE_DOMAIN', None)
+            csrf_cookie_path = getattr(settings, 'CSRF_COOKIE_PATH', '/')
+
+            response.set_cookie(
+                csrf_cookie_name,
+                token,
+                httponly=False,
+                samesite=csrf_cookie_samesite,
+                secure=csrf_cookie_secure,
+                domain=csrf_cookie_domain,
+                path=csrf_cookie_path,
+            )
+
+        return response
 
 
 class SessionDebugView(APIView):

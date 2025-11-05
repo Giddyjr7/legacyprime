@@ -54,10 +54,19 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                 console.log('Could not ensure CSRF cookie before auth check', e);
             }
 
-            // FIX 1: Explicitly define the expected response data shape: { user: User }
-            const userData = await api.get<{ user: User }>(ENDPOINTS.PROFILE);
-            // FIX 2: Use .data.user to extract the payload from the Axios response
-            setUser(userData.data.user);
+            // The `/accounts/profile/` endpoint may return either:
+            //  - { user: { ... } }  (wrapped under `user`) OR
+            //  - { ...user fields... } (the serializer data directly)
+            // Accept both shapes for robustness across environments.
+            const userResp = await api.get<any>(ENDPOINTS.PROFILE);
+            const payload = userResp?.data;
+            const resolvedUser = payload?.user ?? payload ?? null;
+            if (resolvedUser) {
+                setUser(resolvedUser);
+            } else {
+                // No authenticated user returned
+                setUser(null);
+            }
         } catch (error) {
             console.log('Auth check error:', error);
             setUser(null);
@@ -141,6 +150,14 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         try {
             await api.post(ENDPOINTS.LOGOUT);
             setUser(null);
+            // Refresh CSRF cookie for the anonymous session so the frontend
+            // has a valid token for any subsequent actions that may need it.
+            try {
+                await api.get(ENDPOINTS.CSRF);
+            } catch (e) {
+                // Non-fatal: just log for debugging; don't surface to user.
+                console.debug('Could not refresh CSRF after logout', e);
+            }
             toast({
                 title: "Success",
                 description: "Logged out successfully",
