@@ -1,5 +1,6 @@
 from django.urls import path
-from .views import RegisterView, LoginView, LogoutView, ProfileView, VerifyOTPView, ResendOTPView, PasswordResetOTPView, CSRFCookieView, ChangePasswordView
+from .views import RegisterView, LoginView, LogoutView, ProfileView, VerifyOTPView, ResendOTPView, PasswordResetOTPView, CSRFCookieView, ChangePasswordView, SessionDebugView
+from django.conf import settings
 from .views_password_reset import (
     RequestPasswordResetView,
     VerifyPasswordResetOTPView,
@@ -16,9 +17,15 @@ urlpatterns = [
     path('profile/', ProfileView.as_view(), name='profile'),
     path('csrf/', CSRFCookieView.as_view(), name='csrf'),
     path('change-password/', ChangePasswordView.as_view(), name='change-password'),
-    
+
     # Password Reset Flow
     path('request-password-reset/', RequestPasswordResetView.as_view(), name='request-password-reset'),
     path('verify-password-reset-otp/', VerifyPasswordResetOTPView.as_view(), name='verify-password-reset-otp'),
     path('set-new-password/', SetNewPasswordView.as_view(), name='set-new-password'),
 ]
+
+# Debug-only endpoints
+if getattr(settings, 'DEBUG', False):
+    urlpatterns += [
+        path('debug-session/', SessionDebugView.as_view(), name='debug-session'),
+    ]

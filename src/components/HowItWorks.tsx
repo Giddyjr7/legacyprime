@@ -37,7 +37,7 @@ const HowItWorks = () => {
         </div>
         
         <div className="mt-16 text-center">
-          <Link to="/signup">
+          <Link to="/auth/signup">
             <Button size="lg" className="bg-crypto-purple hover:bg-crypto-dark-purple text-white px-8">
               Create Free Account
             </Button>

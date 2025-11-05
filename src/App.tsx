@@ -1,5 +1,6 @@
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
+import CookieConsent from "./components/CookieConsent";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Routes, Route, Navigate } from "react-router-dom";
@@ -14,7 +15,7 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   }
 
   if (!isAuthenticated) {
-    return <Navigate to="/login" />;
+    return <Navigate to="/auth/login" />;
   }
 
   return children;
@@ -31,8 +32,8 @@ import Features from "./components/Features";
 import HowItWorks from "./components/HowItWorks";
 
 // Authentication Routes
-import Login from "./components/Login";
-import Signup from "./components/Signup";
+import Login from "./pages/auth/Login";
+import Signup from "./pages/auth/Signup";
 import ResetPassword from "./pages/auth/ResetPassword";
 import ConfirmPassword from "./pages/auth/ConfirmPassword";
 import VerifyOtp from "./pages/auth/VerifyOtp";
@@ -57,6 +58,7 @@ const App = () => (
       <TooltipProvider>
         <Toaster />
         <Sonner />
+        <CookieConsent />
         <Routes>
           {/* Public pages */}
           <Route path="/" element={<Index />} />
@@ -66,12 +68,12 @@ const App = () => (
           <Route path="/how-it-works" element={<HowItWorks />} />
 
           {/* Authentication */}
-          <Route path="/login" element={<Login />} />
-          <Route path="/signup" element={<Signup />} />
-          <Route path="/reset-password" element={<ResetPassword />} />
-          <Route path="/confirm-password" element={<ConfirmPassword />} />
-          <Route path="/verify-otp" element={<VerifyOtp />} />
-          <Route path="/complete-profile" element={<CompleteProfile />} />
+          <Route path="/auth/login" element={<Login />} />
+          <Route path="/auth/signup" element={<Signup />} />
+          <Route path="/auth/reset-password" element={<ResetPassword />} />
+          <Route path="/auth/confirm-password" element={<ConfirmPassword />} />
+          <Route path="/auth/verify-otp" element={<VerifyOtp />} />
+          <Route path="/auth/complete-profile" element={<CompleteProfile />} />
 
           {/* Protected Dashboard Routes */}
           <Route

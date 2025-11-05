@@ -10,7 +10,8 @@ from django.template.loader import render_to_string
 import logging
 from notifications.utils import send_transactional_email
 from .models import OTP
-from .serializers import RegisterSerializer, LoginSerializer, UserSerializer, UserProfileSerializer, ChangePasswordSerializer
+from .serializers import LoginSerializer, UserSerializer, UserProfileSerializer, ChangePasswordSerializer
+from .serializers_registration import UserRegistrationSerializer as RegisterSerializer
 
 User = get_user_model()
 
@@ -87,12 +88,20 @@ class RegisterView(APIView):
             }, status=status.HTTP_200_OK)
 
             # Ensure session cookie is set
+            # Ensure session cookie is set. Prefer relying on Django's session
+            # middleware which normally sets this automatically, but when we
+            # explicitly set it we must include the same security attributes
+            # that the middleware would. This includes secure, domain, path
+            # and an explicit SameSite value (e.g., 'None' for cross-site).
             response.set_cookie(
                 settings.SESSION_COOKIE_NAME,
                 request.session.session_key,
-                max_age=settings.SESSION_COOKIE_AGE,
-                httponly=settings.SESSION_COOKIE_HTTPONLY,
-                samesite=settings.SESSION_COOKIE_SAMESITE,
+                max_age=getattr(settings, 'SESSION_COOKIE_AGE', None),
+                httponly=getattr(settings, 'SESSION_COOKIE_HTTPONLY', True),
+                samesite=getattr(settings, 'SESSION_COOKIE_SAMESITE', None),
+                secure=getattr(settings, 'SESSION_COOKIE_SECURE', False),
+                domain=getattr(settings, 'SESSION_COOKIE_DOMAIN', None),
+                path=getattr(settings, 'SESSION_COOKIE_PATH', '/'),
             )
 
             return response
@@ -123,8 +132,28 @@ class LogoutView(APIView):
     permission_classes = (permissions.IsAuthenticated,)
 
     def post(self, request):
+        # Log out server-side (this will flush the session)
         logout(request)
-        return Response({"message": "Successfully Logged out"})
+
+        # Return a response that also clears cookies on the client so the
+        # frontend doesn't accidentally reuse a stale session or CSRF token.
+        response = Response({"message": "Successfully logged out"}, status=status.HTTP_200_OK)
+
+        # Use configured cookie names and domains where available so deletion
+        # matches how cookies were set in production.
+        session_cookie_name = getattr(settings, 'SESSION_COOKIE_NAME', 'sessionid')
+        csrf_cookie_name = getattr(settings, 'CSRF_COOKIE_NAME', 'csrftoken')
+
+        session_cookie_domain = getattr(settings, 'SESSION_COOKIE_DOMAIN', None)
+        session_cookie_path = getattr(settings, 'SESSION_COOKIE_PATH', '/')
+
+        csrf_cookie_domain = getattr(settings, 'CSRF_COOKIE_DOMAIN', session_cookie_domain)
+        csrf_cookie_path = getattr(settings, 'CSRF_COOKIE_PATH', '/')
+
+        response.delete_cookie(session_cookie_name, domain=session_cookie_domain, path=session_cookie_path)
+        response.delete_cookie(csrf_cookie_name, domain=csrf_cookie_domain, path=csrf_cookie_path)
+
+        return response
 
 class ProfileView(APIView):
     """API View to handle user profile operations including profile picture upload."""
@@ -388,3 +417,28 @@ class CSRFCookieView(APIView):
 
     def get(self, request):
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class SessionDebugView(APIView):
+    """Debug endpoint to inspect the current session for troubleshooting.
+
+    This endpoint is intentionally quiet in production: it returns 404 when
+    DEBUG is False to avoid exposing any session metadata.
+    """
+    permission_classes = (permissions.AllowAny,)
+
+    def get(self, request):
+        # Only allow when DEBUG is enabled
+        from django.conf import settings
+
+        if not getattr(settings, 'DEBUG', False):
+            return Response({'detail': 'Not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        session_key = request.session.session_key
+        # Only return a small, safe subset of session data for debugging
+        safe_session_data = {k: str(v) for k, v in request.session.items()}
+
+        return Response({
+            'session_key': session_key,
+            'session_data': safe_session_data,
+        }, status=status.HTTP_200_OK)

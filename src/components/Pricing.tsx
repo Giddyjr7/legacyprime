@@ -45,7 +45,7 @@ const Pricing = () => {
                       : 'bg-white/10 hover:bg-white/20 text-white'
                   }`}
                 >
-                  <Link to="/signup">{plan.buttonText}</Link>
+                  <Link to="/auth/signup">{plan.buttonText}</Link>
                 </Button>
                 
                 <div>

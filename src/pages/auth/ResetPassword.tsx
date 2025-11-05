@@ -9,6 +9,19 @@ import { Button } from "@/components/ui/button";
 
 type Step = 'email' | 'otp' | 'password';
 
+interface RequestResetResponse {
+  message: string;
+}
+
+interface VerifyOtpResponse {
+  message: string;
+  reset_token: string;
+}
+
+interface SetNewPasswordResponse {
+  message: string;
+}
+
 const ResetPassword = () => {
   const [step, setStep] = useState<Step>('email');
   const [email, setEmail] = useState("");
@@ -26,7 +39,7 @@ const ResetPassword = () => {
     setLoading(true);
 
     try {
-      const data = await api.post(ENDPOINTS.REQUEST_PASSWORD_RESET, { email });
+      const { data } = await api.post<RequestResetResponse>(ENDPOINTS.REQUEST_PASSWORD_RESET, { email });
       setStep('otp');
       toast({ title: 'Code Sent', description: data.message || 'Reset code sent to your email' });
     } catch (error: any) {
@@ -45,7 +58,7 @@ const ResetPassword = () => {
     setLoading(true);
 
     try {
-      const data = await api.post(ENDPOINTS.VERIFY_PASSWORD_RESET_OTP, { email, otp });
+      const { data } = await api.post<VerifyOtpResponse>(ENDPOINTS.VERIFY_PASSWORD_RESET_OTP, { email, otp });
       setResetToken(data.reset_token);
       setStep('password');
       toast({ title: 'Verified', description: data.message || 'Reset code verified' });
@@ -75,7 +88,7 @@ const ResetPassword = () => {
     setLoading(true);
 
     try {
-      const data = await api.post(ENDPOINTS.SET_NEW_PASSWORD, {
+      const { data } = await api.post<SetNewPasswordResponse>(ENDPOINTS.SET_NEW_PASSWORD, {
         reset_token: resetToken,
         new_password: newPassword
       });
@@ -83,7 +96,7 @@ const ResetPassword = () => {
         title: 'Success',
         description: data.message || 'Your password has been reset successfully.'
       });
-      navigate('/login');
+      navigate('/auth/login');
     } catch (error: any) {
       toast({
         variant: 'destructive',
@@ -206,7 +219,7 @@ const ResetPassword = () => {
         <CardFooter className="flex justify-center">
           <p className="text-sm text-muted-foreground">
             Remember password?{" "}
-            <Link to="/login" className="text-primary hover:underline">
+            <Link to="/auth/login" className="text-primary hover:underline">
               Login
             </Link>
           </p>

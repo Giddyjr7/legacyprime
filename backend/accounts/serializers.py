@@ -90,12 +90,30 @@ class LoginSerializer(serializers.Serializer):
     password = serializers.CharField(write_only=True)
 
     def validate(self, data):
-        user = authenticate(
-            email=data['email'], 
-            password=data['password']
-        )
+        email = data.get('email')
+        password = data.get('password')
+
+        # First check whether an account with this email exists. This lets us
+        # give a clearer validation message when the email is unknown.
+        if not User.objects.filter(email__iexact=email).exists():
+            raise serializers.ValidationError({
+                'email': ['No account found with that email.']
+            })
+
+        # Attempt authentication. If it fails, the password was incorrect (or
+        # another auth backend prevented login).
+        user = authenticate(email=email, password=password)
         if not user:
-            raise serializers.ValidationError('Invalid credentials')
+            raise serializers.ValidationError({
+                'password': ['Incorrect password.']
+            })
+
+        # Optional: reject inactive users explicitly
+        if not user.is_active:
+            raise serializers.ValidationError({
+                'non_field_errors': ['This account is inactive.']
+            })
+
         data['user'] = user
         return data
 

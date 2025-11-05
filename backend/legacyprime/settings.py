@@ -2,7 +2,7 @@ import os
 from pathlib import Path
 from dotenv import load_dotenv
 import dj_database_url
-from datetime import timedelta 
+# from datetime import timedelta  # unused
 
 load_dotenv()
 
@@ -74,8 +74,12 @@ BASE_ALLOWED_ORIGINS = [
     'http://localhost:5173',
     'http://127.0.0.1:5173',
     # Production origins
+    # Render backend (allow both http and https variants in case of odd referers)
     f'https://{RENDER_DOMAIN_NO_PROTOCOL}',
+    f'http://{RENDER_DOMAIN_NO_PROTOCOL}',
+    # Vercel frontend (allow both http and https variants)
     VERCEL_FRONTEND_ORIGIN,
+    f'http://{VERCEL_ORIGIN_NO_PROTOCOL}',
 ]
 
 ENV_ORIGINS = os.environ.get('CORS_ALLOWED_ORIGINS', '').split(',')
@@ -121,14 +125,21 @@ MIDDLEWARE = [
 
 # --- SESSION (COOKIE) SETTINGS ---
 SESSION_ENGINE = 'django.contrib.sessions.backends.db'
+# Explicit session cookie name to avoid accidental overrides
+SESSION_COOKIE_NAME = os.environ.get('SESSION_COOKIE_NAME', 'sessionid')
 SESSION_COOKIE_HTTPONLY = True # Session cookie should remain HTTPOnly for security
 SESSION_COOKIE_AGE = 7 * 24 * 60 * 60 # 1 week
 SESSION_EXPIRE_AT_BROWSER_CLOSE = False
 SESSION_SAVE_EVERY_REQUEST = True
 
 if IS_PRODUCTION:
-    # CRITICAL: Must be None for cross-site
-    SESSION_COOKIE_SAMESITE = None
+    # CRITICAL: Must be the string 'None' for cross-site cookies so browsers
+    # set the SameSite attribute explicitly to `None` (not omitted).
+    # If you set this to None (the Python None), Django omits the attribute
+    # which results in browsers using default Lax behavior and blocking
+    # cross-site cookies. Use the string 'None' to get SameSite=None in the
+    # Set-Cookie header.
+    SESSION_COOKIE_SAMESITE = 'None'
     # CRITICAL: Must be True when SameSite=None (requires HTTPS)
     SESSION_COOKIE_SECURE = True
     # CRITICAL FIX 1: Set the domain to the exact Render hostname
@@ -150,11 +161,17 @@ CSRF_USE_SESSIONS = False
 
 if IS_PRODUCTION:
     # CRITICAL: Must be None for cross-site
-    CSRF_COOKIE_SAMESITE = None
+    # As above, CSRF cookie must explicitly use the string 'None' so the
+    # browser will allow it to be sent in cross-site requests.
+    CSRF_COOKIE_SAMESITE = 'None'
     # CRITICAL: Must be True when SameSite=None (requires HTTPS)
     CSRF_COOKIE_SECURE = True
     # FINAL FIX: Ensure CSRF cookie is available on all paths
     CSRF_COOKIE_PATH = '/'
+    # CRITICAL FIX 5: Ensure CSRF cookie domain matches backend host so the cookie
+    # is set for the correct domain and can be sent/seen by the browser when
+    # performing cross-site requests from the frontend.
+    CSRF_COOKIE_DOMAIN = RENDER_EXTERNAL_HOSTNAME
     # CRITICAL FIX 3: Dynamic and robust CSRF Trusted Origins list
     CSRF_TRUSTED_ORIGINS = [
         # Trust your Vercel frontend (both HTTPS and HTTP in case of strange Referer headers)
@@ -162,6 +179,7 @@ if IS_PRODUCTION:
         f'http://{VERCEL_ORIGIN_NO_PROTOCOL}',
         # Trust your own Render backend domain
         f'https://{RENDER_DOMAIN_NO_PROTOCOL}',
+        f'http://{RENDER_DOMAIN_NO_PROTOCOL}',
     ]
 else:
     # Local development settings (friendly to HTTP)

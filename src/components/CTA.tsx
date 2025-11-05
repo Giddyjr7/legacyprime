@@ -1,6 +1,7 @@
 
 import { Button } from '@/components/ui/button';
 import { ArrowRight } from 'lucide-react';
+import { Link } from 'react-router-dom';
 
 const CTA = () => {
   return (
@@ -20,12 +21,16 @@ const CTA = () => {
             Join thousands of investors already multiplying their assets with our trusted bots. Start today with zero risk.
           </p>
           <div className="flex flex-col sm:flex-row justify-center gap-4 animate-fade-in" style={{ animationDelay: '0.4s' }}>
-            <Button size="lg" className="bg-crypto-purple hover:bg-crypto-dark-purple text-white px-8 py-6">
-              Get Started for Free
-              <ArrowRight className="ml-2 h-5 w-5" />
+            <Button asChild size="lg" className="bg-crypto-purple hover:bg-crypto-dark-purple text-white px-8 py-6">
+              <Link to="/auth/signup">
+                Get Started for Free
+                <ArrowRight className="ml-2 h-5 w-5" />
+              </Link>
             </Button>
-            <Button variant="outline" size="lg" className="border-white/20 text-white hover:bg-white/5 py-6">
-              View plans
+            <Button asChild variant="outline" size="lg" className="border-white/20 text-white hover:bg-white/5 py-6">
+              <a href="#pricing">
+                View plans
+              </a>
             </Button>
           </div>
           <p className="mt-6 text-sm text-gray-400 animate-fade-in" style={{ animationDelay: '0.6s' }}>

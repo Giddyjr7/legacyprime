@@ -85,12 +85,12 @@ const Navbar = () => {
 
         {/* Desktop Auth buttons */}
         <div className="hidden lg:flex items-center space-x-4">
-          <Link to="/login">
+          <Link to="/auth/login">
             <Button variant="ghost" className="text-gray-300 hover:text-white">
               Login
             </Button>
           </Link>
-          <Link to="/signup">
+          <Link to="/auth/signup">
             <Button className="bg-crypto-purple hover:bg-crypto-dark-purple text-white w-full">
               Signup
             </Button>

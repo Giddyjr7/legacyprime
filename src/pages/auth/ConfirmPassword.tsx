@@ -22,7 +22,7 @@ const ConfirmPassword = () => {
 
     // Later: call backend to update password
     // if success then redirect:
-    navigate("/login")
+    navigate("/auth/login")
   }
 
   return (
@@ -83,7 +83,7 @@ const ConfirmPassword = () => {
 
             <p className="text-sm text-muted-foreground text-center">
               Remembered your password?{" "}
-              <a href="/login" className="text-primary hover:underline">
+              <a href="/auth/login" className="text-primary hover:underline">
                 Login
               </a>
             </p>

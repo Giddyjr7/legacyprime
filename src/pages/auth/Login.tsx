@@ -6,6 +6,7 @@ import { Link, useNavigate, useLocation } from "react-router-dom"
 import { Eye, EyeOff } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { useToast } from "@/hooks/use-toast";
+import { APIError } from "@/utils/api";
 
 const Login = () => {
   const navigate = useNavigate();
@@ -15,12 +16,19 @@ const Login = () => {
   
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [serverErrors, setServerErrors] = useState<{
+    email?: string | null;
+    password?: string | null;
+    non_field_errors?: string | null;
+  }>({});
   const [loading, setLoading] = useState(false);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    
+    // Clear any previous server errors
+    setServerErrors({});
+
     try {
       await login(email, password);
       toast({
@@ -29,11 +37,36 @@ const Login = () => {
       });
       navigate("/dashboard");
     } catch (error) {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: error instanceof Error ? error.message : "Login failed",
-      });
+      // If the API returned structured validation errors, display them inline
+      if (error instanceof APIError && error.status === 400 && error.data) {
+        const data = error.data as any;
+        const nextErrors: any = {};
+        // Common Django-rest-framework validation shape: { field: ["msg"] }
+        for (const key of Object.keys(data)) {
+          const val = data[key];
+          if (Array.isArray(val)) {
+            nextErrors[key] = val.join(" ");
+          } else if (typeof val === 'string') {
+            nextErrors[key] = val;
+          } else {
+            nextErrors[key] = JSON.stringify(val);
+          }
+        }
+        setServerErrors(nextErrors);
+        // Also show a toast summary
+        toast({
+          variant: "destructive",
+          title: "Login failed",
+          description: nextErrors.non_field_errors || nextErrors.detail || "Please check your input and try again",
+        });
+      } else {
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: error instanceof Error ? error.message : "Login failed",
+        });
+      }
+      throw error;
     } finally {
       setLoading(false);
     }
@@ -65,19 +98,32 @@ const Login = () => {
               type="email"
               placeholder="Email"
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              onChange={(e) => {
+                setEmail(e.target.value);
+                // clear server error for this field while user edits
+                if (serverErrors.email) setServerErrors((s) => ({ ...s, email: null }));
+              }}
               className="bg-input text-foreground border border-border"
               required
             />
+            {serverErrors.email && (
+              <p className="text-sm text-destructive">{serverErrors.email}</p>
+            )}
             <div className="relative">
               <Input
                 type={showPassword ? "text" : "password"}
                 placeholder="Password"
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                onChange={(e) => {
+                  setPassword(e.target.value);
+                  if (serverErrors.password) setServerErrors((s) => ({ ...s, password: null }));
+                }}
                 className="bg-input text-foreground border border-border"
                 required
               />
+              {serverErrors.password && (
+                <p className="text-sm text-destructive mt-2">{serverErrors.password}</p>
+              )}
               <button
                 type="button"
                 aria-label={showPassword ? "Hide password" : "Show password"}
@@ -111,7 +157,7 @@ const Login = () => {
         <CardFooter className="flex flex-col space-y-3">
           <p className="text-sm text-muted-foreground text-center">
             Don’t have an account?{" "}
-            <Link to="/signup" className="text-primary hover:underline">
+            <Link to="/auth/signup" className="text-primary hover:underline">
               Sign up
             </Link>
           </p>

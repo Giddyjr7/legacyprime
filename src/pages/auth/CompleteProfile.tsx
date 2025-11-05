@@ -21,7 +21,7 @@ const CompleteProfile = () => {
         title: "Error",
         description: "Please log in to continue"
       });
-      navigate("/login");
+      navigate("/auth/login");
     }
   }, [user, isLoading, navigate, toast]);
 
