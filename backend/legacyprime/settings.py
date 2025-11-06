@@ -129,10 +129,11 @@ CORS_ALLOW_HEADERS = [
     'x-requested-with',
 ]
 CORS_ALLOW_METHODS = ['DELETE', 'GET', 'OPTIONS', 'PATCH', 'POST', 'PUT']
+CORS_EXPOSE_HEADERS = ['Content-type', 'X-CSRFToken']
 
 # --- SESSION SETTINGS ---
 SESSION_ENGINE = 'django.contrib.sessions.backends.db'
-SESSION_COOKIE_NAME = os.environ.get('SESSION_COOKIE_NAME', 'sessionid')
+SESSION_COOKIE_NAME = os.environ.get('SESSION_COOKIE_NAME', 'legacyprime_sessionid')
 SESSION_COOKIE_HTTPONLY = True
 SESSION_COOKIE_AGE = 7 * 24 * 60 * 60  # 1 week
 SESSION_EXPIRE_AT_BROWSER_CLOSE = False
