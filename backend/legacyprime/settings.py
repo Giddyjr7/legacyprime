@@ -26,6 +26,7 @@ ALLOWED_HOSTS = [
     '127.0.0.1',
     RENDER_DOMAIN,
     VERCEL_DOMAIN,
+    'legacy-prime.vercel.app',  # Added with hyphen
 ]
 
 extra_hosts = os.environ.get('DJANGO_ALLOWED_HOSTS', '').split(',')
@@ -112,8 +113,11 @@ CORS_ALLOWED_ORIGINS = list({
         'http://127.0.0.1:8080',
         'http://localhost:5173',
         'http://127.0.0.1:5173',
+        'http://localhost:3000',  # Added for local development
+        'http://127.0.0.1:3000',  # Added for local development
         f'https://{RENDER_DOMAIN}',
         f'https://{VERCEL_DOMAIN}',
+        'https://legacy-prime.vercel.app',  # ADDED - with hyphen!
     ],
     *[o.strip() for o in ENV_ORIGINS if o.strip()],
 })
@@ -156,8 +160,11 @@ CSRF_COOKIE_SECURE = IS_PRODUCTION
 CSRF_TRUSTED_ORIGINS = [
     f'https://{VERCEL_DOMAIN}',
     f'https://{RENDER_DOMAIN}',
+    'https://legacy-prime.vercel.app',  # ADDED - with hyphen!
     'http://localhost:5173',
     'http://127.0.0.1:5173',
+    'http://localhost:3000',  # Added
+    'http://127.0.0.1:3000',  # Added
 ]
 if IS_PRODUCTION:
     CSRF_COOKIE_DOMAIN = RENDER_DOMAIN
@@ -189,7 +196,6 @@ EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER', 'apikey')
 DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', '')
 EMAIL_HOST_PASSWORD = os.environ.get('SENDGRID_API_KEY', '')
 EMAIL_DEBUG = DEBUG
-
 
 # --- LOGGING CONFIGURATION ---
 LOGGING = {
