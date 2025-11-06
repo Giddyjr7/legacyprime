@@ -46,16 +46,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const checkAuth = async () => {
         try {
             console.log('Checking authentication...');
-            // Always ensure CSRF cookie is set first
-            try {
-                await api.get(ENDPOINTS.CSRF);
-                console.log('CSRF cookie ensured');
-            } catch (e) {
-                console.log('Could not ensure CSRF cookie before auth check', e);
-            }
-
+            
             // Check if user is authenticated via profile endpoint
-            // Profile endpoint returns user data directly (not wrapped in {user: ...})
             const response = await api.get(ENDPOINTS.PROFILE);
             const userData = response.data;
             
@@ -63,11 +55,14 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                 setUser(userData);
                 console.log('User authenticated:', userData.email);
             } else {
-                // No authenticated user returned
                 setUser(null);
             }
         } catch (error) {
-            console.log('Auth check error:', error);
+            if (error instanceof APIError && error.status === 403) {
+                console.log('User not authenticated (403) - normal behavior');
+            } else {
+                console.log('Auth check error:', error);
+            }
             setUser(null);
         } finally {
             setIsLoading(false);
@@ -80,22 +75,34 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
     const login = async (email: string, password: string) => {
         try {
-            // Ensure CSRF cookie first (login requires CSRF token)
-            try {
-                await api.get(ENDPOINTS.CSRF);
-            } catch (e) {
-                console.warn('CSRF preflight failed', e);
-            }
-
-            const response = await api.post<{ user: User }>(ENDPOINTS.LOGIN, { email, password });
-            // FIX 3: Use .data.user to extract the payload from the Axios response
-            setUser(response.data.user);
+            console.log('Making login request...');
+            const response = await api.post<{ user: User; message: string }>(ENDPOINTS.LOGIN, { email, password });
             
-            toast({
-                title: "Success",
-                description: "Logged in successfully",
-            });
+            // DEBUG: Log the full response
+            console.log('Login response received:', response);
+            console.log('Response data:', response.data);
+            
+            if (response.data && response.data.user) {
+                setUser(response.data.user);
+                console.log('User set successfully:', response.data.user.email);
+                
+                toast({
+                    title: "Success",
+                    description: "Logged in successfully",
+                });
+            } else {
+                console.error('No user data in response:', response.data);
+                throw new Error('Login response missing user data');
+            }
         } catch (error) {
+            console.error('Login error details:', error);
+            
+            // Log the actual error response from Django
+            if (error instanceof APIError) {
+                console.error('API Error data:', error.data);
+                console.error('API Error status:', error.status);
+            }
+            
             toast({
                 variant: "destructive",
                 title: "Error",
@@ -105,21 +112,17 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         }
     };
 
-    // FIX 4: Explicitly define the return type to satisfy the AuthContextType interface
     const register = async (userData: RegisterData): Promise<RegistrationResponse> => {
         try {
             console.log('Sending registration request:', userData);
-            // The generic type is the shape of the data payload (RegistrationResponse)
             const response = await api.post<RegistrationResponse>(ENDPOINTS.REGISTER, userData);
             console.log('Registration response:', response);
             
             // Don't set user here as they need to verify OTP first
             toast({
                 title: "Success",
-                // FIX 5: Access message property from the response data payload
                 description: response.data.message || "Verification code sent to your email",
             });
-            // FIX 6: Return the response data payload, which matches the Promise<RegistrationResponse> type
             return response.data;
         } catch (error) {
             console.error('Registration error:', error);
@@ -149,14 +152,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         try {
             await api.post(ENDPOINTS.LOGOUT);
             setUser(null);
-            // Refresh CSRF cookie for the anonymous session so the frontend
-            // has a valid token for any subsequent actions that may need it.
-            try {
-                await api.get(ENDPOINTS.CSRF);
-            } catch (e) {
-                // Non-fatal: just log for debugging; don't surface to user.
-                console.debug('Could not refresh CSRF after logout', e);
-            }
+            
             toast({
                 title: "Success",
                 description: "Logged out successfully",

@@ -6,7 +6,7 @@ import { Link, useNavigate, useLocation } from "react-router-dom"
 import { Eye, EyeOff } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { useToast } from "@/hooks/use-toast";
-import { APIError } from "@/utils/api";
+import { APIError, ensureCSRFToken } from "@/utils/api";
 
 const Login = () => {
   const navigate = useNavigate();
@@ -26,28 +26,15 @@ const Login = () => {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    // Clear any previous server errors
     setServerErrors({});
-    const startTime = Date.now();
-
-    // First ensure we have a CSRF token
-    try {
-      await fetch(`${import.meta.env.VITE_API_BASE_URL}/accounts/csrf/`, {
-        method: 'GET',
-        credentials: 'include',
-      });
-    } catch (error) {
-      console.warn('Failed to fetch CSRF token:', error);
-    }
 
     try {
+      console.log('Ensuring CSRF token...');
+      await ensureCSRFToken();
+      console.log('CSRF token ensured, proceeding with login...');
+
       console.log('Login payload:', { email, password });
       await login(email, password);
-
-      // Ensure minimum 10 seconds loading time
-      const timeElapsed = Date.now() - startTime;
-      const remainingTime = Math.max(0, 10000 - timeElapsed);
-      await new Promise(resolve => setTimeout(resolve, remainingTime));
 
       toast({
         title: "Success",
@@ -55,11 +42,9 @@ const Login = () => {
       });
       navigate("/dashboard");
     } catch (error) {
-      // If the API returned structured validation errors, display them inline
       if (error instanceof APIError && error.status === 400 && error.data) {
         const data = error.data as any;
         const nextErrors: any = {};
-        // Common Django-rest-framework validation shape: { field: ["msg"] }
         for (const key of Object.keys(data)) {
           const val = data[key];
           if (Array.isArray(val)) {
@@ -71,7 +56,6 @@ const Login = () => {
           }
         }
         setServerErrors(nextErrors);
-        // Also show a toast summary
         toast({
           variant: "destructive",
           title: "Login failed",
@@ -92,13 +76,10 @@ const Login = () => {
 
   const [showPassword, setShowPassword] = useState(false);
 
-  // If redirected here with a flash message (e.g. after verifying email), show
-  // a success toast so the user isn't confused by being sent to login.
   useEffect(() => {
     const state = (location.state as any) || {};
     if (state.flashMessage) {
       toast({ title: 'Success', description: state.flashMessage });
-      // Clear the history state so the message doesn't reappear on refresh
       window.history.replaceState({}, document.title);
     }
   }, [location.state, toast]);
@@ -129,7 +110,6 @@ const Login = () => {
               value={email}
               onChange={(e) => {
                 setEmail(e.target.value);
-                // clear server error for this field while user edits
                 if (serverErrors.email) setServerErrors((s) => ({ ...s, email: null }));
               }}
               className="bg-input text-foreground border border-border"
@@ -163,7 +143,6 @@ const Login = () => {
               </button>
             </div>
 
-            {/* Forgot password link */}
             <div className="text-right">
               <Link
                 to="/reset-password"
@@ -185,7 +164,7 @@ const Login = () => {
 
         <CardFooter className="flex flex-col space-y-3">
           <p className="text-sm text-muted-foreground text-center">
-            Don’t have an account?{" "}
+            Don't have an account?{" "}
             <Link to="/auth/signup" className="text-primary hover:underline">
               Sign up
             </Link>

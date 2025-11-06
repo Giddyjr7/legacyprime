@@ -134,6 +134,7 @@ CORS_ALLOW_HEADERS = [
 ]
 CORS_ALLOW_METHODS = ['DELETE', 'GET', 'OPTIONS', 'PATCH', 'POST', 'PUT']
 CORS_EXPOSE_HEADERS = ['Content-type', 'X-CSRFToken']
+CORS_PREFLIGHT_MAX_AGE = 86400
 
 # --- SESSION SETTINGS ---
 SESSION_ENGINE = 'django.contrib.sessions.backends.db'
