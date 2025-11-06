@@ -19,7 +19,7 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
     return <Navigate to="/auth/login" />;
   }
 
-  return <>children</>;
+  return children;
 };
 
 // Pages
@@ -95,6 +95,7 @@ const App = () => (
             <Route path="profile" element={<Profile />} />
             <Route path="settings" element={<Settings />} />
             <Route path="confirm-deposit" element={<ConfirmDeposit />} />
+            <Route path="*" element={<Navigate to="/dashboard" replace />} />
           </Route>
 
           {/* Catch-all (404) */}

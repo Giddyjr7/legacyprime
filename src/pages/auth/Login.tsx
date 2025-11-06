@@ -30,7 +30,18 @@ const Login = () => {
     setServerErrors({});
     const startTime = Date.now();
 
+    // First ensure we have a CSRF token
     try {
+      await fetch(`${import.meta.env.VITE_API_BASE_URL}/accounts/csrf/`, {
+        method: 'GET',
+        credentials: 'include',
+      });
+    } catch (error) {
+      console.warn('Failed to fetch CSRF token:', error);
+    }
+
+    try {
+      console.log('Login payload:', { email, password });
       await login(email, password);
 
       // Ensure minimum 10 seconds loading time

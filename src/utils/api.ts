@@ -149,6 +149,11 @@ api.interceptors.request.use(async (config) => {
         return config;
     }
 
+    // Always ensure we have a CSRF token before non-GET requests
+    if (config.method?.toUpperCase() !== 'GET') {
+        await CSRFManager.ensure();
+    }
+
     // Only attempt to attach the CSRF token for non-safe methods
     if (config.method && !SAFE_METHODS.includes(config.method.toUpperCase())) {
         try {
@@ -182,6 +187,17 @@ api.interceptors.response.use(
             const { status, data, config } = error.response;
 
             // Handle CSRF-related errors (403 with specific error message)
+            // Log all 403 errors for debugging
+            if (status === 403) {
+                console.error('403 Error Details:', {
+                    url: config.url,
+                    method: config.method,
+                    headers: config.headers,
+                    data: data,
+                    cookies: document.cookie
+                });
+            }
+
             if (status === 403 && 
                 typeof data === 'object' && 
                 data !== null &&
