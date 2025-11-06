@@ -1,10 +1,20 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { DashboardLoading } from '@/components/DashboardLoading';
 
 export default function Deposit() {
   const [selectedMethod, setSelectedMethod] = useState("");
   const [amount, setAmount] = useState("");
+  const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
+
+  // Initial loading when component mounts
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setLoading(false);
+    }, 7000);
+    return () => clearTimeout(timer);
+  }, []);
 
   const paymentMethods = [
     { name: "BITCOIN", icon: "₿" },
@@ -14,25 +24,45 @@ export default function Deposit() {
   ];
 
   // Handle Confirm Deposit
-  const handleConfirm = () => {
-    if (!selectedMethod) {
-      alert("Please select a payment method");
-      return;
-    }
+  const handleConfirm = async () => {
+    try {
+      setLoading(true);
+      if (!selectedMethod) {
+        alert("Please select a payment method");
+        setLoading(false);
+        return;
+      }
 
-    if (!amount || parseFloat(amount) <= 0) {
-      alert("Please enter a valid amount");
-      return;
-    }
+      if (!amount || parseFloat(amount) <= 0) {
+        alert("Please enter a valid amount");
+        setLoading(false);
+        return;
+      }
 
-    navigate("/dashboard/confirm-deposit", {
-      state: {
-        method: selectedMethod,
-        amount: parseFloat(amount),
-        fee: 1.5, // Example fee for now
-      },
-    });
+      // Ensure minimum 10 seconds loading time
+      const startTime = Date.now();
+      await new Promise(resolve => {
+        const timeElapsed = Date.now() - startTime;
+        const remainingTime = Math.max(0, 10000 - timeElapsed);
+        setTimeout(resolve, remainingTime);
+      });
+
+      navigate("/dashboard/confirm-deposit", {
+        state: {
+          method: selectedMethod,
+          amount: parseFloat(amount),
+          fee: 1.5, // Example fee for now
+        },
+      });
+    } catch (error) {
+      console.error('Error processing deposit:', error);
+      setLoading(false);
+    }
   };
+
+  if (loading) {
+    return <DashboardLoading message="Processing deposit ..." />;
+  }
 
   return (
     <div className="rounded-xl border border-border bg-card p-6 shadow-sm">

@@ -4,9 +4,25 @@ import { api } from "@/utils/api";
 import { ENDPOINTS } from "@/config/api";
 import { Camera } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { DashboardLoading } from '@/components/DashboardLoading';
+import { FC } from 'react';
 
-export default function Profile() {
+interface ProfileData {
+  first_name?: string;
+  last_name?: string;
+  email?: string;
+  mobile?: string;
+  address?: string;
+  state?: string;
+  zip_code?: string;
+  city?: string;
+  country?: string;
+  profile_picture_url?: string;
+}
+
+const Profile: FC = () => {
   const { toast } = useToast();
+  const [isLoading, setIsLoading] = useState(true);
   const [profile, setProfile] = useState({
     firstName: "",
     lastName: "",
@@ -18,6 +34,14 @@ export default function Profile() {
     city: "",
     country: "",
   });
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setIsLoading(false);
+    }, 7000); // Fixed 7-second loading time
+
+    return () => clearTimeout(timer);
+  }, []);
 
   const [image, setImage] = useState<string | null>(null);
   const [currentImageUrl, setCurrentImageUrl] = useState<string | null>(null);
@@ -40,6 +64,8 @@ export default function Profile() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setIsLoading(true);
+    const startTime = Date.now();
 
     try {
       // Create FormData if there's an image file
@@ -72,7 +98,6 @@ export default function Profile() {
       if (!isImageUpdating && currentImageUrl) {
         setImage(currentImageUrl);
       }
-      console.log('Profile update response:', response);
 
       toast({
         title: "Success",
@@ -80,7 +105,7 @@ export default function Profile() {
       });
 
       // Refresh profile data to show new values
-      const data = await api.get(ENDPOINTS.PROFILE);
+      const { data } = await api.get(ENDPOINTS.PROFILE);
       console.log('Profile refresh data:', data);
       setProfile({
         firstName: data.first_name || '',
@@ -108,47 +133,65 @@ export default function Profile() {
         title: "Error",
         description: err instanceof Error ? err.message : "Failed to update profile",
       });
+    } finally {
+      setIsLoading(false);
     }
   };
 
   useEffect(() => {
-    (async () => {
+    let mounted = true;
+    
+    async function loadProfile() {
+      if (!mounted) return;
+      setIsLoading(true);
       try {
-        const data = await api.get(ENDPOINTS.PROFILE);
+        const response = await api.get<ProfileData>(ENDPOINTS.PROFILE);
+        if (!mounted) return;
+        
+        const data = response.data;
         setProfile({
-          firstName: data.first_name || '',
-          lastName: data.last_name || '',
-          email: data.email || '',
-          mobile: data.mobile || '',
-          address: data.address || '',
-          state: data.state || '',
-          zipCode: data.zip_code || '',
-          city: data.city || '',
-          country: data.country || '',
+          firstName: data?.first_name || '',
+          lastName: data?.last_name || '',
+          email: data?.email || '',
+          mobile: data?.mobile || '',
+          address: data?.address || '',
+          state: data?.state || '',
+          zipCode: data?.zip_code || '',
+          city: data?.city || '',
+          country: data?.country || '',
         });
         
         // Set profile picture if available
-        console.log('Profile data received:', data);
-        if (data.profile_picture_url) {
-          // Construct full URL if it's a relative path
-          const baseUrl = 'http://localhost:8000';  // Use the same base URL as the API
+        if (data?.profile_picture_url) {
+          const baseUrl = 'http://localhost:8000';
           const imageUrl = data.profile_picture_url.startsWith('http') 
             ? data.profile_picture_url 
             : `${baseUrl}${data.profile_picture_url}`;
-          console.log('Setting profile picture URL:', imageUrl);
           setCurrentImageUrl(imageUrl);
           setImage(imageUrl);
         }
       } catch (err) {
-        console.error('Failed to load profile', err);
+        console.error('Failed to load profile:', err);
         toast({
           variant: "destructive",
           title: "Error",
           description: "Failed to load profile data",
         });
+      } finally {
+        if (mounted) setIsLoading(false);
       }
-    })();
-  }, []);
+    }
+
+    loadProfile();
+
+    return () => {
+      mounted = false;
+    };
+  }, [toast]);
+
+  if (isLoading) {
+    return <DashboardLoading message="Loading Settings..." />;
+  }
 
   return (
     <div className="p-6">
@@ -312,4 +355,6 @@ export default function Profile() {
       </div>
     </div>
   );
-}
+};
+
+export default Profile;

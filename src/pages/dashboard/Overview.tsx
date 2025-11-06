@@ -18,6 +18,7 @@ import {
 } from 'chart.js';
 import { Filler } from 'chart.js';
 import { useAuth } from '@/context/AuthContext';
+import { DashboardLoading } from '@/components/DashboardLoading';
 
 ChartJS.register(
     CategoryScale,
@@ -36,12 +37,13 @@ export default function Overview() {
     const [summary, setSummary] = useState<any>(null);
     const [performance, setPerformance] = useState<any>(null);
     const [transactions, setTransactions] = useState<{deposits:any[]; withdrawals:any[]}>({deposits:[], withdrawals:[]});
+    const [isLoading, setIsLoading] = useState(true);
 
-    const { isAuthenticated, isLoading } = useAuth();
+    const { isAuthenticated } = useAuth();
 
     // WebSocket notifications disabled — no-op to avoid console noise
 
-    // Update transactions when WebSocket notifies of changes
+        // Update transactions when WebSocket notifies of changes
     const handleTransactionUpdate = (type: string, updatedTransaction: any) => {
         setTransactions(prev => {
             if (type === 'deposit_approved') {
@@ -59,42 +61,80 @@ export default function Overview() {
         });
     };
 
+    // Load data and handle loading state
     useEffect(() => {
-        if (isLoading) return; // wait for auth check
-        if (!isAuthenticated) {
-            // user not logged in — skip loading protected data
+        // Always start with loading state
+        setIsLoading(true);
+        
+        // Set timer for exactly 7 seconds loading
+        const timer = setTimeout(() => {
+            setIsLoading(false);
+        }, 7000);
+
+        // Only fetch data if authenticated
+        if (isAuthenticated) {
+            Promise.all([
+                api.get(ENDPOINTS.DASHBOARD_SUMMARY),
+                api.get(ENDPOINTS.DASHBOARD_PERFORMANCE),
+                api.get(ENDPOINTS.TRANSACTIONS)
+            ])
+            .then(([summaryRes, performanceRes, transactionsRes]) => {
+                setSummary(summaryRes.data);
+                setPerformance(performanceRes.data);
+                setTransactions(transactionsRes.data);
+            })
+            .catch(error => {
+                console.error('Failed loading dashboard data:', error);
+            });
+        } else {
+            // Clear data if not authenticated
             setSummary(null);
             setPerformance(null);
             setTransactions({ deposits: [], withdrawals: [] });
-            return;
         }
 
-        const load = async () => {
-            try {
-                // FIX 1: Access the .data property from the Axios response
-                const s = await api.get(ENDPOINTS.DASHBOARD_SUMMARY);
-                setSummary((s as any).data);
-            } catch (err) {
-                console.error('Failed loading summary', err);
-            }
-            try {
-                // FIX 2: Access the .data property from the Axios response
-                const p = await api.get(ENDPOINTS.DASHBOARD_PERFORMANCE);
-                setPerformance((p as any).data);
-            } catch (err) {
-                console.error('Failed loading performance', err);
-            }
-            try {
-                // FIX 3: Access the .data property from the Axios response
-                const t = await api.get(`${ENDPOINTS.TRANSACTIONS}`);
-                // API returns {deposits, withdrawals}
-                setTransactions((t as any).data);
-            } catch (err) {
-                console.error('Failed loading transactions', err);
-            }
-        };
-        load();
-    }, [isAuthenticated, isLoading]);
+        // Cleanup timer on unmount
+        return () => clearTimeout(timer);
+    }, [isAuthenticated]); // Only re-run if authentication status changes
+
+    useEffect(() => {
+        // Reset loading state and start fresh
+        setIsLoading(true);
+
+        // Timer to ensure we show content after exactly 7 seconds
+        const timer = setTimeout(() => {
+            setIsLoading(false);
+        }, 7000);
+
+        // Only load data if authenticated
+        if (isAuthenticated) {
+            // Load dashboard data
+            Promise.all([
+                api.get(ENDPOINTS.DASHBOARD_SUMMARY),
+                api.get(ENDPOINTS.DASHBOARD_PERFORMANCE),
+                api.get(`${ENDPOINTS.TRANSACTIONS}`)
+            ]).then(([summaryRes, performanceRes, transactionsRes]) => {
+                setSummary(summaryRes.data);
+                setPerformance(performanceRes.data);
+                setTransactions(transactionsRes.data);
+            }).catch(err => {
+                console.error('Failed loading dashboard data', err);
+            });
+        } else {
+            // Clear data if not authenticated
+            setSummary(null);
+            setPerformance(null);
+            setTransactions({ deposits: [], withdrawals: [] });
+        }
+
+        // Cleanup timer on unmount
+        return () => clearTimeout(timer);
+    }, [isAuthenticated]);
+
+    if (isLoading) {
+        return <DashboardLoading message="Loading dashboard information..." />;
+    }
+
     return (
         <>
             {flash && <FlashMessage message={flash} onClose={() => setFlash(null)} />}

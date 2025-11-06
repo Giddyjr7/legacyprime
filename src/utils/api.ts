@@ -78,23 +78,54 @@ export const ENDPOINTS = {
     CHANGE_PASSWORD: `${API_BASE_URL}/accounts/change-password/`,
 };
 
-// --- 4. CSRF Cookie Reader Utility ---
+// --- 4. CSRF Token Management ---
 
 /**
- * Extracts the value of the 'csrftoken' cookie from document.cookie.
- * @returns The CSRF token string or null if not found.
+ * Type definition for CSRF token refresh response
  */
-function getCsrfToken(): string | null {
-    const cookies = document.cookie.split(';');
-    for (let i = 0; i < cookies.length; i++) {
-        let cookie = cookies[i].trim();
-        // Check if this cookie starts with 'csrftoken='
-        if (cookie.startsWith('csrftoken=')) {
-            // Return the value part of the cookie
-            return cookie.substring('csrftoken='.length, cookie.length);
+interface CSRFResponse {
+    csrfToken: string;
+}
+
+/**
+ * CSRF Token management utility
+ */
+const CSRFManager = {
+    /**
+     * Gets the CSRF token from cookies using a more reliable method
+     */
+    getToken(): string | null {
+        const match = document.cookie.match(/csrftoken=([^;]+)/);
+        return match ? match[1] : null;
+    },
+
+    /**
+     * Refreshes the CSRF token by making a request to the CSRF endpoint
+     */
+    async refresh(): Promise<string | null> {
+        try {
+            const response = await axios.get<CSRFResponse>(ENDPOINTS.CSRF, {
+                withCredentials: true
+            });
+            // The Django endpoint sets the cookie automatically
+            // Return the new token from the cookie
+            return this.getToken();
+        } catch (error) {
+            console.warn('Failed to refresh CSRF token:', error);
+            return null;
         }
+    },
+
+    /**
+     * Ensures a valid CSRF token is available, refreshing if necessary
+     */
+    async ensure(): Promise<string | null> {
+        let token = this.getToken();
+        if (!token) {
+            token = await this.refresh();
+        }
+        return token;
     }
-    return null;
 }
 
 // --- 5. Axios Instance Configuration ---
@@ -112,17 +143,30 @@ export const api: AxiosInstance = axios.create({
 // Define "safe" methods (which don't require the CSRF token)
 const SAFE_METHODS = ['GET', 'HEAD', 'OPTIONS', 'TRACE'];
 
-api.interceptors.request.use((config) => {
-    // Only attempt to attach the CSRF token for non-safe methods (POST, PUT, DELETE, etc.)
+api.interceptors.request.use(async (config) => {
+    // Skip CSRF handling for the CSRF endpoint itself to avoid infinite loops
+    if (config.url === ENDPOINTS.CSRF) {
+        return config;
+    }
+
+    // Only attempt to attach the CSRF token for non-safe methods
     if (config.method && !SAFE_METHODS.includes(config.method.toUpperCase())) {
-        const csrfToken = getCsrfToken();
-        
-        if (csrfToken) {
-            // Attach the token to the 'X-CSRFToken' header
-            config.headers['X-CSRFToken'] = csrfToken;
-        } else {
-            // This is a critical debugging point
-            console.error('CSRF Token not found in cookies for non-safe method:', config.url);
+        try {
+            const csrfToken = await CSRFManager.ensure();
+            
+            if (csrfToken) {
+                // Attach the token to the 'X-CSRFToken' header
+                config.headers['X-CSRFToken'] = csrfToken;
+            } else {
+                // Log warning but allow request to proceed - Django will reject if needed
+                console.warn(
+                    `CSRF token not available for ${config.method?.toUpperCase()} request to ${config.url}. ` +
+                    'Request may fail if CSRF protection is required.'
+                );
+            }
+        } catch (error) {
+            console.error('Error while ensuring CSRF token:', error);
+            // Allow request to proceed - Django will reject if CSRF is required
         }
     }
     return config;
@@ -130,19 +174,62 @@ api.interceptors.request.use((config) => {
     return Promise.reject(error);
 });
 
-// --- 7. Response Interceptor for Error Handling (Optional but Recommended) ---
-// This automatically wraps all Axios errors in our custom APIError for predictable handling
+// --- 7. Response Interceptor for Error Handling ---
 api.interceptors.response.use(
     (response) => response,
-    (error) => {
+    async (error) => {
         if (axios.isAxiosError(error) && error.response) {
-            // Convert Axios error to our custom APIError
+            const { status, data, config } = error.response;
+
+            // Handle CSRF-related errors (403 with specific error message)
+            if (status === 403 && 
+                typeof data === 'object' && 
+                data !== null &&
+                'detail' in data && 
+                typeof data.detail === 'string' && 
+                data.detail.toLowerCase().includes('csrf')) {
+                
+                // Log the CSRF error for debugging
+                console.warn('CSRF validation failed, attempting to refresh token...', {
+                    url: config.url,
+                    method: config.method
+                });
+
+                try {
+                    // Attempt to refresh the CSRF token
+                    await CSRFManager.refresh();
+                    
+                    // Retry the original request
+                    // Remove the response interceptor temporarily to avoid infinite loops
+                    const originalResponse = await axios({
+                        ...config,
+                        withCredentials: true,
+                        headers: {
+                            ...config.headers,
+                            'X-CSRFToken': CSRFManager.getToken()
+                        }
+                    });
+                    
+                    return originalResponse;
+                } catch (retryError) {
+                    console.error('Failed to recover from CSRF error:', retryError);
+                    // If retry fails, throw the original error wrapped in APIError
+                    throw new APIError(
+                        'CSRF validation failed and recovery was unsuccessful',
+                        status,
+                        data
+                    );
+                }
+            }
+
+            // For non-CSRF errors, wrap in APIError as before
             throw new APIError(
                 error.message,
-                error.response.status,
-                error.response.data
+                status,
+                data
             );
         }
+
         // For network errors or other non-response errors, re-throw the original error
         return Promise.reject(error);
     }

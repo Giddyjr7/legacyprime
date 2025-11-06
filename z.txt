@@ -82,12 +82,10 @@
             Footer.tsx
             Hero.tsx
             HowItWorks.tsx
-            Login.tsx
             Navbar.tsx
             Pricing.tsx
             ScrollToTop.tsx
             Sidebar.tsx
-            Signup.tsx
             Testimonials.tsx
         >context
             AuthContext
@@ -106,14 +104,16 @@
             >auth
                 CompleteProfile.tsx
                 ConfirmPassword.tsx
+                Login.tsx
                 ResetPassword.tsx
+                Signup.tsx
                 VerifyOtp.tsx
             >dashboard
                 ConfirmDeposit.tsx
                 Deposit.tsx
                 Overview.tsx
                 Profile.tsx
-                Trasactions.tsx
+                Transactions.tsx
                 Withdraw.tsx
             index.tsx
             NotFound.tsx

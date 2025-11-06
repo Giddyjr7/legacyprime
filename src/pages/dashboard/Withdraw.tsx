@@ -1,18 +1,32 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "@/utils/api";
 import { ENDPOINTS } from "@/config/api";
+import { DashboardLoading } from '@/components/DashboardLoading';
 
 export default function Withdraw() {
   const [selectedMethod, setSelectedMethod] = useState("");
   const [amount, setAmount] = useState("");
+  const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
+
+  // Initial loading when component mounts
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setLoading(false);
+    }, 7000);
+    return () => clearTimeout(timer);
+  }, []);
 
   const paymentMethods = [
     { name: "USDT BEP20", icon: "🟢" },
     { name: "USDT TRC20", icon: "💠" },
     { name: "BITCOIN", icon: "₿" },
   ];
+
+  if (loading) {
+    return <DashboardLoading message="Processing withdrawal..." />;
+  }
 
   return (
     <div className="rounded-xl border border-border bg-card p-6 shadow-sm">
@@ -94,17 +108,28 @@ export default function Withdraw() {
           <button
             onClick={async () => {
               if (!selectedMethod || !amount) return;
+              setLoading(true);
               try {
                 await api.post(ENDPOINTS.WALLET_WITHDRAW, {
                   amount: Number(amount),
                   withdrawal_address: selectedMethod,
                 });
+
+                // Ensure minimum 10 seconds loading time
+                const startTime = Date.now();
+                await new Promise(resolve => {
+                  const timeElapsed = Date.now() - startTime;
+                  const remainingTime = Math.max(0, 10000 - timeElapsed);
+                  setTimeout(resolve, remainingTime);
+                });
+
                 navigate('/dashboard', {
                   state: { flashMessage: 'Your withdrawal is being processed and will be confirmed shortly.' }
                 });
               } catch (err) {
                 console.error('Withdraw error', err);
                 alert('Failed to create withdrawal');
+                setLoading(false);
               }
             }}
             disabled={!selectedMethod || !amount}

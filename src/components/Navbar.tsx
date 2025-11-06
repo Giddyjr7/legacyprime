@@ -167,7 +167,7 @@ const Navbar = () => {
 
               {/* Mobile Auth buttons */}
               <li className="pt-4 flex flex-col space-y-3">
-                <Link to="/login" onClick={() => setIsMobileMenuOpen(false)}>
+                <Link to="/auth/login" onClick={() => setIsMobileMenuOpen(false)}>
                   <Button
                     variant="ghost"
                     className="text-gray-300 hover:text-white w-full justify-start"
@@ -175,7 +175,7 @@ const Navbar = () => {
                     Login
                   </Button>
                 </Link>
-                <Link to="/signup" onClick={() => setIsMobileMenuOpen(false)}>
+                <Link to="/auth/signup" onClick={() => setIsMobileMenuOpen(false)}>
                   <Button className="bg-crypto-purple hover:bg-crypto-dark-purple text-white w-full">
                     Signup
                   </Button>

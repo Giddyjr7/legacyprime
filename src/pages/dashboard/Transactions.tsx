@@ -3,6 +3,7 @@ import { Search, ArrowUpDown } from 'lucide-react';
 import { api, APIError } from '@/utils/api';
 import { ENDPOINTS } from '@/config/api';
 import { useAuth } from '@/context/AuthContext';
+import { DashboardLoading } from '@/components/DashboardLoading';
 
 interface Transaction {
   id: string;
@@ -21,11 +22,21 @@ export default function Transactions() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState('all');
   const [sortOrder, setSortOrder] = useState('newest');
 
+  // Debounce search input
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(search);
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [search]);
+
   const filteredTransactions = useMemo(() => {
-    const searchTerm = search.toLowerCase().trim();
+    const searchTerm = debouncedSearch.toLowerCase().trim();
     const filtered = transactions.filter(tx => {
       // Check if search term matches any of the transaction fields
       const matchesReference = tx.reference?.toLowerCase().includes(searchTerm);
@@ -50,7 +61,7 @@ export default function Transactions() {
     });
 
     return sorted;
-  }, [transactions, search, typeFilter, sortOrder]);
+  }, [transactions, debouncedSearch, typeFilter, sortOrder]);
 
   // Fetch transactions when authenticated
   useEffect(() => {
@@ -64,23 +75,31 @@ export default function Transactions() {
     const load = async () => {
       setLoading(true);
       setError(null);
+      const startTime = Date.now();
+      
       try {
-        const res = await api.get<any>(ENDPOINTS.TRANSACTIONS);
+        const response = await api.get(ENDPOINTS.TRANSACTIONS);
+        const res = response.data;
+        
+        // Ensure minimum 10 seconds loading time
+        const timeElapsed = Date.now() - startTime;
+        const remainingTime = Math.max(0, 10000 - timeElapsed);
+        await new Promise(resolve => setTimeout(resolve, remainingTime));
 
         // Backend may return {deposits: [], withdrawals: []} or a flat array
         let items: any[] = [];
-        if (res && Array.isArray(res)) {
+        if (Array.isArray(res)) {
           items = res;
-        } else if (res && (res.deposits || res.withdrawals)) {
-          const deps = res.deposits || [];
-          const wds = res.withdrawals || [];
+        } else if (res && ('deposits' in res || 'withdrawals' in res)) {
+          const deps = (res as any).deposits || [];
+          const wds = (res as any).withdrawals || [];
           // normalize and combine
           items = [
             ...deps.map((i: any) => ({ ...i, transaction_type: 'deposit' })),
             ...wds.map((i: any) => ({ ...i, transaction_type: 'withdrawal' })),
           ];
-        } else if (res && res.results && Array.isArray(res.results)) {
-          items = res.results;
+        } else if (res && 'results' in res && Array.isArray((res as any).results)) {
+          items = (res as any).results;
         }
 
         const normalized: Transaction[] = items.map((it: any) => ({
@@ -110,6 +129,10 @@ export default function Transactions() {
       mounted = false;
     };
   }, [isAuthenticated, authLoading]);
+
+  if (loading) {
+    return <DashboardLoading message="Loading transactions..." />;
+  }
 
   return (
     <div className="space-y-6 p-4 md:p-6">

@@ -5,11 +5,13 @@ import { ENDPOINTS } from "@/config/api";
 import { api } from "@/utils/api";
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
+import { DashboardLoading } from '@/components/DashboardLoading';
 
 const ConfirmDeposit = () => {
   const location = useLocation();
   const { amount } = location.state || { amount: "0.00" };
   const navigate = useNavigate();
+  const [isLoading, setIsLoading] = useState(false);
 
   // Example calculation (add fee, adjust dynamically)
   const fee = 1.5;
@@ -23,6 +25,10 @@ const ConfirmDeposit = () => {
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) setFile(e.target.files[0]);
   };
+
+  if (isLoading) {
+    return <DashboardLoading message="Processing your deposit... Please wait" />;
+  }
 
   return (
     <div className="p-6">
@@ -66,8 +72,10 @@ const ConfirmDeposit = () => {
 
           <Button
             onClick={async () => {
+              setIsLoading(true);
               try {
                 if (!file) {
+                  setIsLoading(false);
                   toast({
                     title: 'Upload required',
                     description: 'Please upload a proof of payment to continue.',
@@ -144,6 +152,15 @@ const ConfirmDeposit = () => {
                 }
 
                 const data = JSON.parse(responseText);
+                
+                // Ensure minimum 10 seconds loading time
+                const startTime = Date.now();
+                await new Promise(resolve => {
+                  const timeElapsed = Date.now() - startTime;
+                  const remainingTime = Math.max(0, 10000 - timeElapsed);
+                  setTimeout(resolve, remainingTime);
+                });
+
                 navigate('/dashboard', {
                   state: { flashMessage: 'Your deposit is being processed and will be approved shortly' }
                 });
@@ -154,8 +171,11 @@ const ConfirmDeposit = () => {
                   description: 'Failed to submit deposit',
                   variant: 'destructive',
                 });
+              } finally {
+                setIsLoading(false);
               }
             }}
+            disabled={isLoading}
             className="w-full bg-primary hover:opacity-90 text-primary-foreground rounded-xl"
           >
             Pay Now

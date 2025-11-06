@@ -28,9 +28,16 @@ const Login = () => {
     setLoading(true);
     // Clear any previous server errors
     setServerErrors({});
+    const startTime = Date.now();
 
     try {
       await login(email, password);
+
+      // Ensure minimum 10 seconds loading time
+      const timeElapsed = Date.now() - startTime;
+      const remainingTime = Math.max(0, 10000 - timeElapsed);
+      await new Promise(resolve => setTimeout(resolve, remainingTime));
+
       toast({
         title: "Success",
         description: `Welcome back ${email}!`,
@@ -84,6 +91,17 @@ const Login = () => {
       window.history.replaceState({}, document.title);
     }
   }, [location.state, toast]);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="text-center">
+          <div className="w-16 h-16 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-lg font-medium text-muted-foreground">Logging you in...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background text-foreground">

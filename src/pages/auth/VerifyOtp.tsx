@@ -24,7 +24,8 @@ const VerifyOtp = () => {
     if (emailParam) {
       setEmail(emailParam);
     } else {
-      navigate('/login');
+      // Keep route namespace consistent with App routes
+      navigate('/auth/login');
     }
   }, [location, navigate]);
 
@@ -53,7 +54,8 @@ const VerifyOtp = () => {
       // redirect to /login for unauthenticated users, but that flow
       // previously showed an error message — pass an explicit success
       // flash to avoid confusing the user.
-      navigate("/login", { state: { flashMessage: 'Account created successfully. Please log in to continue.' } });
+  // Redirect into the auth route namespace used by the router
+      navigate("/auth/login", { state: { flashMessage: 'Account created successfully. Please log in to continue.' } });
     } catch (error) {
       toast({
         variant: "destructive",

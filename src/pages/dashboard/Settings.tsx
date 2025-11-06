@@ -1,10 +1,11 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Eye, EyeOff } from "lucide-react";
 import { api } from "@/utils/api";
 import { ENDPOINTS } from "@/config/api";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/context/AuthContext";
+import { DashboardLoading } from '@/components/DashboardLoading';
 
 interface Message {
   text: string;
@@ -12,7 +13,11 @@ interface Message {
 }
 
 export default function Settings() {
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated } = useAuth();
+  const navigate = useNavigate();
+  const { toast } = useToast();
+  
+  // State declarations
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -21,9 +26,26 @@ export default function Settings() {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [message, setMessage] = useState<Message | null>(null);
   const [busy, setBusy] = useState(false);
-  const navigate = useNavigate();
+  const [isLoading, setIsLoading] = useState(true);
 
-  const { toast } = useToast();
+  // Handle initial loading state
+  useEffect(() => {
+    // Start with loading state
+    setIsLoading(true);
+
+    // Set timer for exactly 7 seconds
+    const timer = setTimeout(() => {
+      setIsLoading(false);
+    }, 7000);
+
+    // Cleanup timer on unmount
+    return () => clearTimeout(timer);
+  }, []); // Only run once on mount
+
+  // Show loading state
+  if (isLoading) {
+    return <DashboardLoading message="Loading settings..." />;
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -40,6 +62,7 @@ export default function Settings() {
     }
 
     setBusy(true);
+    const startTime = Date.now();
 
     if (!isAuthenticated) {
       setMessage({ text: "Please log in to change your password", type: "error" });
@@ -68,6 +91,11 @@ export default function Settings() {
         title: "Success",
         description: "Your password has been updated successfully",
       });
+
+      // Ensure minimum 10 seconds loading time
+      const timeElapsed = Date.now() - startTime;
+      const remainingTime = Math.max(0, 10000 - timeElapsed);
+      await new Promise(resolve => setTimeout(resolve, remainingTime));
 
       setCurrentPassword("");
       setNewPassword("");
@@ -109,6 +137,10 @@ export default function Settings() {
       setBusy(false);
     }
   };
+
+  if (busy) {
+    return <DashboardLoading message="Updating settings..." />;
+  }
 
   return (
     <div className="rounded-xl border border-border bg-card p-6 shadow-sm">

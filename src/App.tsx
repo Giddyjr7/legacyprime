@@ -5,20 +5,21 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "./context/AuthContext";
+import { LoadingScreen } from "./components/ui/loading-spinner";
 
 // Protected Route Component
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const { isAuthenticated, isLoading } = useAuth();
 
   if (isLoading) {
-    return <div>Loading...</div>; // You can replace this with a proper loading component
+    return <LoadingScreen />;
   }
 
   if (!isAuthenticated) {
     return <Navigate to="/auth/login" />;
   }
 
-  return children;
+  return <>children</>;
 };
 
 // Pages
@@ -68,6 +69,9 @@ const App = () => (
           <Route path="/how-it-works" element={<HowItWorks />} />
 
           {/* Authentication */}
+          {/* Backwards-compatible redirects for legacy links */}
+          <Route path="/login" element={<Navigate to="/auth/login" replace />} />
+          <Route path="/signup" element={<Navigate to="/auth/signup" replace />} />
           <Route path="/auth/login" element={<Login />} />
           <Route path="/auth/signup" element={<Signup />} />
           <Route path="/auth/reset-password" element={<ResetPassword />} />
