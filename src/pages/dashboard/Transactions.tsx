@@ -135,7 +135,7 @@ export default function Transactions() {
   }
 
   return (
-    <div className="space-y-6 p-4 md:p-6">
+    <div className="space-y-6 w-full max-w-full px-2 sm:px-4 overflow-x-hidden">
       {/* Header */}
       <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
         <h1 className="text-2xl font-bold">Transaction History</h1>

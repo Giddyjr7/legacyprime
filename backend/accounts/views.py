@@ -315,3 +315,26 @@ class JWTDebugView(APIView):
             "is_authenticated": request.user.is_authenticated
         })
 
+
+class JWTTestView(APIView):
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        return Response({
+            "message": "JWT authentication is working!",
+            "user_id": request.user.id,
+            "user_email": request.user.email,
+            "is_authenticated": request.user.is_authenticated
+        })
+    
+class DebugAuthView(APIView):
+    def get(self, request):
+        auth_header = request.META.get('HTTP_AUTHORIZATION', '')
+        return Response({
+            "auth_header_received": auth_header,
+            "user": str(request.user),
+            "is_authenticated": request.user.is_authenticated,
+            "user_id": getattr(request.user, 'id', None),
+            "user_email": getattr(request.user, 'email', None)
+        })

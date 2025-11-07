@@ -14,16 +14,30 @@ export class APIError extends Error {
 }
 
 const getApiBaseUrl = () => {
+    // Debug logging to see what's happening
+    console.log('🔍 DEBUG - Environment check:', {
+        VITE_API_BASE_URL: import.meta.env.VITE_API_BASE_URL,
+        PROD: import.meta.env.PROD,
+        MODE: import.meta.env.MODE,
+        DEV: import.meta.env.DEV
+    });
+
     if (import.meta.env.VITE_API_BASE_URL) {
+        console.log('🔍 DEBUG - Using VITE_API_BASE_URL:', import.meta.env.VITE_API_BASE_URL);
         return import.meta.env.VITE_API_BASE_URL;
     }
     if (import.meta.env.PROD) {
+        console.log('🔍 DEBUG - Using production fallback');
         return 'https://legacyprime.onrender.com/api';
     }
+    console.log('🔍 DEBUG - Using development URL');
     return 'http://localhost:8000/api';
 };
 
 export const API_BASE_URL = getApiBaseUrl();
+
+// Log the final API base URL
+console.log('🔍 DEBUG - Final API_BASE_URL:', API_BASE_URL);
 
 export const ENDPOINTS = {
     // JWT Authentication endpoints
@@ -61,9 +75,14 @@ export const ENDPOINTS = {
     MARK_NOTIFICATION_READ: (id: string) => `${API_BASE_URL}/notifications/${id}/mark-read/`,
 };
 
+// Log all endpoints for debugging
+console.log('🔍 DEBUG - Endpoints:', ENDPOINTS);
+
 // JWT Token management
 const getAccessToken = (): string | null => {
-    return localStorage.getItem('access_token');
+    const token = localStorage.getItem('access_token');
+    console.log('🔍 DEBUG - getAccessToken:', token ? 'Token exists' : 'No token');
+    return token;
 };
 
 const getRefreshToken = (): string | null => {
@@ -71,33 +90,57 @@ const getRefreshToken = (): string | null => {
 };
 
 export const setTokens = (access: string, refresh: string): void => {
+    console.log('🔍 DEBUG - Setting tokens in localStorage');
     localStorage.setItem('access_token', access);
     localStorage.setItem('refresh_token', refresh);
 };
 
 export const clearTokens = (): void => {
+    console.log('🔍 DEBUG - Clearing tokens from localStorage');
     localStorage.removeItem('access_token');
     localStorage.removeItem('refresh_token');
 };
 
 export const api: AxiosInstance = axios.create({
     baseURL: API_BASE_URL,
-    // Remove withCredentials since we're using JWT tokens in headers
+    timeout: 10000, // Add timeout
 });
 
-// Request interceptor - attach JWT token
+// Enhanced Request interceptor with debugging
 api.interceptors.request.use((config) => {
     const token = getAccessToken();
+    console.log('🔍 DEBUG - Request Interceptor:', {
+        url: config.url,
+        method: config.method,
+        hasToken: !!token,
+        baseURL: config.baseURL
+    });
+    
     if (token && config.headers) {
         config.headers.Authorization = `Bearer ${token}`;
+        console.log('🔍 DEBUG - Authorization header added');
+    } else {
+        console.log('🔍 DEBUG - No token available for request');
     }
     return config;
 });
 
-// Response interceptor - handle token refresh
+// Enhanced Response interceptor with debugging
 api.interceptors.response.use(
-    (response) => response,
+    (response) => {
+        console.log('🔍 DEBUG - Response Success:', {
+            url: response.config.url,
+            status: response.status
+        });
+        return response;
+    },
     async (error) => {
+        console.error('🔍 DEBUG - Response Error:', {
+            url: error.config?.url,
+            status: error.response?.status,
+            message: error.message
+        });
+
         const originalRequest = error.config;
 
         // If error is 401 and we haven't already tried to refresh the token
@@ -105,6 +148,10 @@ api.interceptors.response.use(
             originalRequest._retry = true;
 
             const refreshToken = getRefreshToken();
+            console.log('🔍 DEBUG - Token refresh attempt:', {
+                hasRefreshToken: !!refreshToken
+            });
+
             if (refreshToken) {
                 try {
                     console.log('Attempting to refresh token...');
@@ -132,6 +179,7 @@ api.interceptors.response.use(
                 }
             } else {
                 // No refresh token available, redirect to login
+                console.log('🔍 DEBUG - No refresh token available');
                 clearTokens();
                 window.location.href = '/auth/login';
             }

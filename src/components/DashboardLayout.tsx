@@ -12,6 +12,7 @@ import {
   X,
   ChevronDown,
 } from "lucide-react";
+import Logo from "@/assets/LEGACYPRIME-LOGO-WEB-ICON-2.png";
 export default function DashboardLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const navigate = useNavigate();
@@ -72,12 +73,13 @@ export default function DashboardLayout() {
         }`}
       >
         <div className="flex items-center justify-between py-6 px-4 border-b border-border">
-          <h1 className="text-lg font-bold">
-            <span className="text-white">Legacy</span>
-            <span className="text-crypto-purple">Prime</span>
-          </h1>
+          <div className="flex items-center gap-2">
+            <Link to="/" onClick={() => setSidebarOpen(false)} className="inline-flex items-center">
+              <img src={Logo} alt="LegacyPrime" className="h-6 w-auto" />
+            </Link>
+          </div>
           <button className="lg:hidden" onClick={() => setSidebarOpen(false)}>
-            <X size={20} />
+            <X size={25} />
           </button>
         </div>
           <nav className="flex flex-col p-4 space-y-2 mt-8">

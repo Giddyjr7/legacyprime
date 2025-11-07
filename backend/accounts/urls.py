@@ -7,7 +7,7 @@ from .views_password_reset import (
     SetNewPasswordView
 )
 from .views import CustomTokenObtainPairView
-from . views import JWTDebugView
+from . views import JWTDebugView, JWTTestView, DebugAuthView
 
 urlpatterns = [
     # JWT Authentication endpoints
@@ -31,4 +31,6 @@ urlpatterns = [
     # Debugging endpoint (if needed)
     
     path('jwt-debug/', JWTDebugView.as_view(), name='jwt-debug'),
+    path('jwt-test/', JWTTestView.as_view(), name='jwt-test'),
+    path('debug-auth/', DebugAuthView.as_view(), name='debug-auth'),
 ]

@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import Logo from "@/assets/LEGACYPRIME-LOGO-WEB-ICON.png";
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from "@/components/ui/card"
 import { Link, useNavigate, useLocation } from "react-router-dom"
 import { Eye, EyeOff } from "lucide-react";
@@ -92,14 +93,16 @@ const Login = () => {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background text-foreground">
-      <Card className="w-full max-w-md bg-card text-card-foreground shadow-lg">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-hero hero-glow text-foreground">
+      <Card className="w-full max-w-md bg-card text-card-foreground shadow-xl shadow-primary/10 border border-border/40">
         <CardHeader>
-          <CardTitle className="text-2xl font-semibold text-center">Login</CardTitle>
+          <div className="flex flex-col items-center gap-3 py-4">
+            <img src={Logo} alt="LegacyPrime logo" className="w-12 h-12" />
+            <CardTitle className="text-2xl font-semibold text-center">Login</CardTitle>
+          </div>
         </CardHeader>
-
-        <CardContent>
-          <form onSubmit={handleLogin} className="space-y-4">
+        <CardContent className="space-y-6 py-6 px-4">
+          <form onSubmit={handleLogin} className="space-y-5">
             <Input
               type="email"
               placeholder="Email"
@@ -150,7 +153,7 @@ const Login = () => {
 
             <Button
               type="submit"
-              className="w-full bg-primary text-primary-foreground hover:bg-primary/80"
+              className="w-full bg-primary text-primary-foreground hover:bg-primary/80 hover:scale-[1.02] transition-transform duration-150"
               disabled={loading}
             >
               {loading ? "Logging in..." : "Login"}

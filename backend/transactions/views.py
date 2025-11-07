@@ -8,9 +8,10 @@ from django.shortcuts import get_object_or_404
 from itertools import chain
 from operator import attrgetter
 from rest_framework.pagination import PageNumberPagination
-
+from rest_framework_simplejwt.authentication import JWTAuthentication  # ADD THIS IMPORT
 
 class CreateDepositView(APIView):
+    authentication_classes = [JWTAuthentication]  # ADD THIS LINE
     permission_classes = (permissions.IsAuthenticated,)
 
     def post(self, request):
@@ -24,6 +25,7 @@ class CreateDepositView(APIView):
 
 
 class CreateWithdrawalView(APIView):
+    authentication_classes = [JWTAuthentication]  # ADD THIS LINE
     permission_classes = (permissions.IsAuthenticated,)
 
     def post(self, request):
@@ -36,6 +38,7 @@ class CreateWithdrawalView(APIView):
 
 
 class ListTransactionsView(APIView):
+    authentication_classes = [JWTAuthentication]  # ADD THIS LINE
     permission_classes = (permissions.IsAuthenticated,)
 
     def get(self, request):
@@ -59,6 +62,7 @@ class ListTransactionsView(APIView):
 
 
 class DashboardSummaryView(APIView):
+    authentication_classes = [JWTAuthentication]  # ADD THIS LINE
     permission_classes = (permissions.IsAuthenticated,)
 
     def get(self, request):
@@ -81,6 +85,7 @@ class TransactionPagination(PageNumberPagination):
     max_page_size = 100
 
 class TransactionHistoryView(APIView):
+    authentication_classes = [JWTAuthentication]  # ADD THIS LINE
     permission_classes = (permissions.IsAuthenticated,)
     pagination_class = TransactionPagination
 
@@ -126,6 +131,7 @@ class TransactionHistoryView(APIView):
         return paginator.get_paginated_response(paginated_transactions)
 
 class DashboardPerformanceView(APIView):
+    authentication_classes = [JWTAuthentication]  # ADD THIS LINE
     permission_classes = (permissions.IsAuthenticated,)
 
     def get(self, request):
