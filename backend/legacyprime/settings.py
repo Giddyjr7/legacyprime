@@ -17,21 +17,31 @@ DEBUG = os.environ.get('DJANGO_DEBUG', 'False').lower() == 'true'
 IS_PRODUCTION = not DEBUG
 
 # --- HOSTS ---
-RENDER_EXTERNAL_HOSTNAME = os.environ.get('RENDER_EXTERNAL_HOSTNAME', 'legacyprime.onrender.com')
+RENDER_EXTERNAL_HOSTNAME = os.environ.get('RENDER_EXTERNAL_HOSTNAME')
 VERCEL_FRONTEND_ORIGIN = os.environ.get('VERCEL_FRONTEND_ORIGIN', 'https://legacyprime.vercel.app')
-RENDER_DOMAIN = RENDER_EXTERNAL_HOSTNAME.replace("https://", "").replace("http://", "")
-VERCEL_DOMAIN = VERCEL_FRONTEND_ORIGIN.replace("https://", "").replace("http://", "")
 
-ALLOWED_HOSTS = [
-    'localhost',
-    '127.0.0.1',
-    RENDER_DOMAIN,
-    VERCEL_DOMAIN,
-    'legacy-prime.vercel.app',
-]
+# Dynamic allowed hosts for both development and production
+ALLOWED_HOSTS = []
 
-extra_hosts = os.environ.get('DJANGO_ALLOWED_HOSTS', '').split(',')
-ALLOWED_HOSTS += [h.strip() for h in extra_hosts if h.strip()]
+if DEBUG:
+    # Development hosts
+    ALLOWED_HOSTS.extend(['localhost', '127.0.0.1', '0.0.0.0'])
+else:
+    # Production hosts
+    if RENDER_EXTERNAL_HOSTNAME:
+        ALLOWED_HOSTS.append(RENDER_EXTERNAL_HOSTNAME)
+    
+    # Add Vercel domains
+    if VERCEL_FRONTEND_ORIGIN:
+        vercel_domain = VERCEL_FRONTEND_ORIGIN.replace("https://", "").replace("http://", "")
+        ALLOWED_HOSTS.append(vercel_domain)
+        ALLOWED_HOSTS.append('legacy-prime.vercel.app')
+
+# Add any extra hosts from environment
+extra_hosts = os.environ.get('DJANGO_ALLOWED_HOSTS', '')
+if extra_hosts:
+    ALLOWED_HOSTS.extend([h.strip() for h in extra_hosts.split(',') if h.strip()])
+
 ALLOWED_HOSTS = list(dict.fromkeys(ALLOWED_HOSTS))
 
 # --- INSTALLED APPS ---
@@ -54,7 +64,7 @@ INSTALLED_APPS = [
 
 # --- MIDDLEWARE ---
 MIDDLEWARE = [
-    'corsheaders.middleware.CorsMiddleware',  # Keep this at the top
+    'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
@@ -89,10 +99,18 @@ WSGI_APPLICATION = 'legacyprime.wsgi.application'
 ASGI_APPLICATION = 'legacyprime.asgi.application'
 
 # --- DATABASE ---
-DATABASE_URL = os.environ.get('DATABASE_URL', '')
+DATABASE_URL = os.environ.get('DATABASE_URL')
 if DATABASE_URL:
-    DATABASES = {'default': dj_database_url.config(default=DATABASE_URL, conn_max_age=600)}
+    # Production database (PostgreSQL on Render)
+    DATABASES = {
+        'default': dj_database_url.config(
+            default=DATABASE_URL,
+            conn_max_age=600,
+            conn_health_checks=True,
+        )
+    }
 else:
+    # Development database (SQLite)
     DATABASES = {
         'default': {
             'ENGINE': 'django.db.backends.sqlite3',
@@ -101,43 +119,61 @@ else:
     }
 
 # --- CHANNELS ---
-CHANNEL_LAYERS = {'default': {'BACKEND': 'channels.layers.InMemoryChannelLayer'}}
+if IS_PRODUCTION:
+    # Production Redis configuration (if using Redis on Render)
+    REDIS_URL = os.environ.get('REDIS_URL')
+    if REDIS_URL:
+        CHANNEL_LAYERS = {
+            'default': {
+                'BACKEND': 'channels_redis.core.RedisChannelLayer',
+                'CONFIG': {
+                    'hosts': [REDIS_URL],
+                },
+            },
+        }
+    else:
+        CHANNEL_LAYERS = {'default': {'BACKEND': 'channels.layers.InMemoryChannelLayer'}}
+else:
+    # Development
+    CHANNEL_LAYERS = {'default': {'BACKEND': 'channels.layers.InMemoryChannelLayer'}}
 
 # --- USER MODEL ---
 AUTH_USER_MODEL = 'accounts.User'
 
-# --- CORS --- (UPDATED SECTION)
-# Remove this line - it causes the wildcard issue with credentials
-# CORS_ALLOW_ALL_ORIGINS = True
+# --- CORS CONFIGURATION ---
+CORS_ALLOWED_ORIGINS = []
 
-# Add these specific origins instead:
-CORS_ALLOWED_ORIGINS = [
-    "http://localhost:8080",
-    "http://127.0.0.1:8080",
-    "https://legacyprime.vercel.app",
-    "https://legacy-prime.vercel.app",
-]
+if DEBUG:
+    # Development origins
+    CORS_ALLOWED_ORIGINS.extend([
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "http://localhost:8080", 
+        "http://127.0.0.1:8080",
+    ])
+else:
+    # Production origins
+    if VERCEL_FRONTEND_ORIGIN:
+        CORS_ALLOWED_ORIGINS.append(VERCEL_FRONTEND_ORIGIN)
+        CORS_ALLOWED_ORIGINS.append("https://legacy-prime.vercel.app")
+    
+    # Add Render backend URL for potential frontend-backend communication
+    if RENDER_EXTERNAL_HOSTNAME:
+        CORS_ALLOWED_ORIGINS.append(f"https://{RENDER_EXTERNAL_HOSTNAME}")
 
-# For production, you might want to add your render domain too
-if RENDER_EXTERNAL_HOSTNAME:
-    CORS_ALLOWED_ORIGINS.append(f"https://{RENDER_DOMAIN}")
-
-# Set to False since we're using JWT tokens in headers, not cookies
+# Additional CORS settings
 CORS_ALLOW_CREDENTIALS = False
-
-# Additional CORS settings for better security
 CORS_ALLOW_HEADERS = [
     'accept',
     'accept-encoding',
-    'authorization',  # Important for JWT
+    'authorization',
     'content-type',
     'dnt',
     'origin',
     'user-agent',
     'x-requested-with',
-    'x-csrftoken',  # Keep for admin if needed
+    'x-csrftoken',
 ]
-
 CORS_ALLOW_METHODS = [
     'DELETE',
     'GET',
@@ -146,9 +182,16 @@ CORS_ALLOW_METHODS = [
     'POST',
     'PUT',
 ]
-
-# Optional: Expose additional headers if needed
 CORS_EXPOSE_HEADERS = ['Content-Type', 'Authorization']
+
+# Security settings for production
+if IS_PRODUCTION:
+    SECURE_SSL_REDIRECT = True
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    SECURE_BROWSER_XSS_FILTER = True
+    SECURE_CONTENT_TYPE_NOSNIFF = True
 
 # --- JWT CONFIGURATION ---
 SIMPLE_JWT = {
@@ -186,32 +229,54 @@ REST_FRAMEWORK = {
     'DEFAULT_PERMISSION_CLASSES': [
         'rest_framework.permissions.IsAuthenticated',
     ],
+    'DEFAULT_RENDERER_CLASSES': [
+        'rest_framework.renderers.JSONRenderer',
+    ],
 }
 
-# --- STATIC & MEDIA ---
+# Remove Browsable API in production
+if not DEBUG:
+    REST_FRAMEWORK['DEFAULT_RENDERER_CLASSES'] = [
+        'rest_framework.renderers.JSONRenderer',
+    ]
+
+# --- STATIC & MEDIA FILES ---
 STATIC_URL = '/static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 STATICFILES_DIRS = [BASE_DIR / 'static']
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
-# --- GENERAL ---
+# For production, you might want to use cloud storage for media files
+if IS_PRODUCTION and os.environ.get('AWS_ACCESS_KEY_ID'):
+    # AWS S3 Configuration (optional)
+    DEFAULT_FILE_STORAGE = 'storages.backends.s3boto3.S3Boto3Storage'
+    AWS_ACCESS_KEY_ID = os.environ.get('AWS_ACCESS_KEY_ID')
+    AWS_SECRET_ACCESS_KEY = os.environ.get('AWS_SECRET_ACCESS_KEY')
+    AWS_STORAGE_BUCKET_NAME = os.environ.get('AWS_STORAGE_BUCKET_NAME')
+    AWS_S3_REGION_NAME = os.environ.get('AWS_S3_REGION_NAME', 'us-east-1')
+    AWS_S3_CUSTOM_DOMAIN = f'{AWS_STORAGE_BUCKET_NAME}.s3.amazonaws.com'
+    MEDIA_URL = f'https://{AWS_S3_CUSTOM_DOMAIN}/media/'
+
+# --- GENERAL SETTINGS ---
 LANGUAGE_CODE = 'en-us'
 TIME_ZONE = 'UTC'
 USE_I18N = True
 USE_TZ = True
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-# --- EMAIL SETTINGS (SENDGRID) ---
+# --- EMAIL SETTINGS ---
 EMAIL_BACKEND = os.environ.get('EMAIL_BACKEND', 'legacyprime.sendgrid_backend.SendGridEmailBackend')
 EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER', 'apikey')
-DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', '')
+DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', 'noreply@legacyprime.com')
 EMAIL_HOST_PASSWORD = os.environ.get('SENDGRID_API_KEY', '')
 EMAIL_DEBUG = DEBUG
 
 PROJECT_NAME = "Legacy Prime"
-# --- LOGGING CONFIGURATION ---
+
+# --- LOGGING ---
 LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,
@@ -238,18 +303,18 @@ LOGGING = {
     'loggers': {
         'django': {
             'handlers': ['console'],
-            'level': os.getenv('DJANGO_LOG_LEVEL', 'INFO'),
+            'level': 'INFO',
+            'propagate': False,
+        },
+        'django.request': {
+            'handlers': ['console'],
+            'level': 'ERROR',
             'propagate': False,
         },
         'accounts': {
             'handlers': ['console'],
             'level': 'INFO',
             'propagate': True,
-        },
-        'corsheaders': {
-            'handlers': ['console'],
-            'level': 'DEBUG' if DEBUG else 'INFO',
-            'propagate': False,
         },
     },
 }
