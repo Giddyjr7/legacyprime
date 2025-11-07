@@ -13,6 +13,8 @@ from notifications.utils import send_transactional_email
 from .models import OTP
 from .serializers import UserSerializer, UserProfileSerializer, ChangePasswordSerializer
 from .serializers_registration import UserRegistrationSerializer as RegisterSerializer
+from rest_framework_simplejwt.authentication import JWTAuthentication
+from rest_framework.permissions import IsAuthenticated
 
 User = get_user_model()
 
@@ -298,3 +300,18 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
 
 class CustomTokenObtainPairView(TokenObtainPairView):
     serializer_class = CustomTokenObtainPairSerializer
+
+
+
+class JWTDebugView(APIView):
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        return Response({
+            "message": "JWT authentication successful",
+            "user_id": request.user.id,
+            "user_email": request.user.email,
+            "is_authenticated": request.user.is_authenticated
+        })
+
