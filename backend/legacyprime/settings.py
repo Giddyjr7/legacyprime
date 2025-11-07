@@ -74,6 +74,7 @@ MIDDLEWARE = [
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'legacyprime.middleware.DebugMiddleware',
+    'legacyprime.jwt_debug.JWTDebugMiddleware',
 ]
 
 ROOT_URLCONF = 'legacyprime.urls'
