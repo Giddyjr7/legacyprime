@@ -3,6 +3,7 @@ from rest_framework import status, permissions, parsers
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from rest_framework_simplejwt.views import TokenObtainPairView
 from django.core.mail import EmailMessage
@@ -40,8 +41,6 @@ class RegisterView(APIView):
                 'otp_code': otp_instance.otp
             }
 
-            # Send using the reusable transactional email helper which will render
-            # the HTML and text templates and route through the configured backend.
             logger = logging.getLogger(__name__)
             try:
                 sent = send_transactional_email(
@@ -81,6 +80,7 @@ class RegisterView(APIView):
 
 class ProfileView(APIView):
     """API View to handle user profile operations including profile picture upload."""
+    authentication_classes = [JWTAuthentication]
     permission_classes = (permissions.IsAuthenticated,)
     parser_classes = (parsers.MultiPartParser, parsers.FormParser, parsers.JSONParser)
 
@@ -180,47 +180,6 @@ class VerifyOTPView(APIView):
                 "message": "OTP not found or already used"
             }, status=status.HTTP_400_BAD_REQUEST)
 
-class PasswordResetOTPView(APIView):
-    """Send an OTP to an existing user's email for password reset."""
-    permission_classes = (permissions.AllowAny,)
-
-    def post(self, request):
-        email = request.data.get('email')
-        if not email:
-            return Response({"message": "Email is required"}, status=status.HTTP_400_BAD_REQUEST)
-
-        try:
-            user = User.objects.get(email=email)
-        except User.DoesNotExist:
-            return Response({"message": "No account found with that email"}, status=status.HTTP_400_BAD_REQUEST)
-
-        # Generate OTP
-        otp_instance = OTP.generate_otp(email)
-
-        # Send OTP via email
-        subject = f"{settings.PROJECT_NAME} - Password Reset Code"
-        context = {
-            'project_name': settings.PROJECT_NAME,
-            'otp_code': otp_instance.otp
-        }
-
-        try:
-            sent = send_transactional_email(
-                subject=subject,
-                recipient_list=[email],
-                template_name='notifications/otp_email.html',
-                context=context,
-                from_email=getattr(settings, 'DEFAULT_FROM_EMAIL', None),
-                fail_silently=False,
-            )
-            if not sent:
-                logging.getLogger(__name__).error('send_transactional_email returned 0 for %s', email)
-                return Response({"message": "Error sending email", "error": "send_failed"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-            return Response({"message": "OTP sent to your email"}, status=status.HTTP_200_OK)
-        except Exception as e:
-            logging.getLogger(__name__).exception('Error sending password reset email')
-            return Response({"message": "Error sending email", "error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
 class ResendOTPView(APIView):
     permission_classes = (permissions.AllowAny,)
 
@@ -276,33 +235,40 @@ class ResendOTPView(APIView):
                 "error": str(e)
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+
 class ChangePasswordView(APIView):
     """Allow an authenticated user to change their password."""
+    authentication_classes = [JWTAuthentication]
     permission_classes = (permissions.IsAuthenticated,)
 
     def post(self, request):
-        print("Change password request data:", request.data)
+        print("🔍 DEBUG - Change password request data:", request.data)
         
         serializer = ChangePasswordSerializer(data=request.data)
         if not serializer.is_valid():
-            print("Serializer validation errors:", serializer.errors)
+            print("🔍 DEBUG - Serializer validation errors:", serializer.errors)
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
         user = request.user
         current = serializer.validated_data.get('current_password')
         new_password = serializer.validated_data.get('new_password')
+        confirm_password = serializer.validated_data.get('confirm_password')
 
         # Verify current password
         if not user.check_password(current):
-            print(f"Current password incorrect for user {user.email}")
+            print(f"🔍 DEBUG - Current password incorrect for user {user.email}")
             return Response({"current_password": ["Current password is incorrect."]}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Verify passwords match
+        if new_password != confirm_password:
+            return Response({"new_password": ["New passwords do not match."]}, status=status.HTTP_400_BAD_REQUEST)
 
         # Additional password validation
         try:
             from django.contrib.auth.password_validation import validate_password
             validate_password(new_password, user)
         except Exception as e:
-            print(f"Password validation error: {str(e)}")
+            print(f"🔍 DEBUG - Password validation error: {str(e)}")
             try:
                 return Response({"new_password": e.messages}, status=status.HTTP_400_BAD_REQUEST)
             except Exception:
@@ -312,11 +278,16 @@ class ChangePasswordView(APIView):
         user.set_password(new_password)
         user.save()
 
-        print(f"Password updated successfully for user {user.email}")
+        print(f"🔍 DEBUG - Password updated successfully for user {user.email}")
 
-        return Response({"detail": "Password updated successfully."}, status=status.HTTP_200_OK)
-    
-
+        # Generate NEW JWT tokens so user stays logged in
+        refresh = RefreshToken.for_user(user)
+        
+        return Response({
+            "detail": "Password updated successfully.",
+            "access": str(refresh.access_token),
+            "refresh": str(refresh)
+        }, status=status.HTTP_200_OK)
 
 class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
     def validate(self, attrs):

@@ -20,11 +20,12 @@ interface RegistrationResponse {
 
 interface AuthContextType {
     user: User | null;
-    token: string | null; // ADD THIS LINE
+    token: string | null;
     isLoading: boolean;
     login: (email: string, password: string) => Promise<void>;
     register: (userData: RegisterData) => Promise<RegistrationResponse>;
     logout: () => Promise<void>;
+    updateTokens: (access: string, refresh: string) => void; // ADD THIS LINE
     isAuthenticated: boolean;
 }
 
@@ -41,13 +42,21 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
     const [user, setUser] = useState<User | null>(null);
-    const [token, setToken] = useState<string | null>(getAccessToken()); // ADD THIS STATE
+    const [token, setToken] = useState<string | null>(getAccessToken());
     const [isLoading, setIsLoading] = useState(true);
     const { toast } = useToast();
 
+    // ADD THIS FUNCTION - Updates tokens without logging out
+    const updateTokens = (access: string, refresh: string) => {
+        console.log('🔍 DEBUG - Updating tokens in AuthContext');
+        setTokens(access, refresh);
+        setToken(access);
+        console.log('🔍 DEBUG - Tokens updated successfully');
+    };
+
     const checkAuth = async () => {
         const currentToken = getAccessToken();
-        setToken(currentToken); // UPDATE TOKEN STATE
+        setToken(currentToken);
         
         if (!currentToken) {
             setUser(null);
@@ -65,14 +74,13 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                 console.log('User authenticated via JWT:', userData.email);
             } else {
                 setUser(null);
-                setToken(null); // CLEAR TOKEN IF NO USER DATA
+                setToken(null);
             }
         } catch (error) {
             console.log('JWT auth check error:', error);
-            // Clear tokens if auth check fails
             clearTokens();
             setUser(null);
-            setToken(null); // CLEAR TOKEN ON ERROR
+            setToken(null);
         } finally {
             setIsLoading(false);
         }
@@ -86,7 +94,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         try {
             console.log('Making JWT login request...');
             
-            // Call JWT token endpoint
             const response = await api.post(ENDPOINTS.LOGIN, { email, password });
             
             console.log('JWT login response received:', response);
@@ -95,11 +102,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             const { access, refresh } = response.data;
             
             if (access && refresh) {
-                // Store JWT tokens
                 setTokens(access, refresh);
-                setToken(access); // UPDATE TOKEN STATE
+                setToken(access);
                 
-                // Now fetch user data using the token
                 console.log('Fetching user profile with new token...');
                 const userResponse = await api.get(ENDPOINTS.PROFILE);
                 const userData = userResponse.data;
@@ -123,7 +128,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         } catch (error) {
             console.error('JWT login error details:', error);
             
-            // Log the actual error response from Django
             if (error instanceof APIError) {
                 console.error('API Error data:', error.data);
                 console.error('API Error status:', error.status);
@@ -146,61 +150,53 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             
             console.log('JWT Registration response:', response);
             
-            // Check if response is successful (status 200-299)
             if (response.status >= 200 && response.status < 300) {
-            toast({
-                title: "Success",
-                description: response.data.message || "Verification code sent to your email",
-            });
-            return response.data;
+                toast({
+                    title: "Success",
+                    description: response.data.message || "Verification code sent to your email",
+                });
+                return response.data;
             } else {
-            // Handle non-success status codes
-            throw new APIError(
-                response.data.message || 'Registration failed',
-                response.status,
-                response.data
-            );
+                throw new APIError(
+                    response.data.message || 'Registration failed',
+                    response.status,
+                    response.data
+                );
             }
         } catch (error) {
             console.error('JWT Registration error:', error);
             
-            // Only throw error if it's not a successful response
             if (error instanceof APIError && error.status >= 400) {
-            let errorMessage = error.message;
-            
-            // Handle specific error cases
-            if (error.status === 400) {
-                errorMessage = "Please check your registration details and try again.";
-            } else if (error.status === 500) {
-                errorMessage = "Server error during registration. Please try again.";
-            }
-            
-            toast({
-                variant: "destructive",
-                title: "Registration Failed",
-                description: errorMessage,
-            });
+                let errorMessage = error.message;
+                
+                if (error.status === 400) {
+                    errorMessage = "Please check your registration details and try again.";
+                } else if (error.status === 500) {
+                    errorMessage = "Server error during registration. Please try again.";
+                }
+                
+                toast({
+                    variant: "destructive",
+                    title: "Registration Failed",
+                    description: errorMessage,
+                });
             } else if (error instanceof Error) {
-            // Network or other errors
-            toast({
-                variant: "destructive",
-                title: "Registration Failed",
-                description: error.message || "Network error. Please check your connection.",
-            });
+                toast({
+                    variant: "destructive",
+                    title: "Registration Failed",
+                    description: error.message || "Network error. Please check your connection.",
+                });
             }
             
             throw error;
         }
-        };
+    };
 
     const logout = async () => {
         try {
-            // Clear JWT tokens from localStorage
             clearTokens();
-            
-            // Clear user state
             setUser(null);
-            setToken(null); // CLEAR TOKEN STATE
+            setToken(null);
             
             console.log('JWT logout successful');
             
@@ -222,11 +218,12 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         <AuthContext.Provider 
             value={{
                 user,
-                token, // ADD THIS TO THE PROVIDER VALUE
+                token,
                 isLoading,
                 login,
                 register,
                 logout,
+                updateTokens, // ADD THIS TO THE PROVIDER VALUE
                 isAuthenticated: !!user,
             }}
         >

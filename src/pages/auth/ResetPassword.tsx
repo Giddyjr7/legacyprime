@@ -15,7 +15,6 @@ interface RequestResetResponse {
 
 interface VerifyOtpResponse {
   message: string;
-  reset_token: string;
 }
 
 interface SetNewPasswordResponse {
@@ -26,7 +25,6 @@ const ResetPassword = () => {
   const [step, setStep] = useState<Step>('email');
   const [email, setEmail] = useState("");
   const [otp, setOtp] = useState("");
-  const [resetToken, setResetToken] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -59,7 +57,6 @@ const ResetPassword = () => {
 
     try {
       const { data } = await api.post<VerifyOtpResponse>(ENDPOINTS.VERIFY_PASSWORD_RESET_OTP, { email, otp });
-      setResetToken(data.reset_token);
       setStep('password');
       toast({ title: 'Verified', description: data.message || 'Reset code verified' });
     } catch (error: any) {
@@ -85,23 +82,50 @@ const ResetPassword = () => {
       return;
     }
 
+    if (newPassword.length < 8) {
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: 'Password must be at least 8 characters long.'
+      });
+      return;
+    }
+
     setLoading(true);
 
     try {
-      const { data } = await api.post<SetNewPasswordResponse>(ENDPOINTS.SET_NEW_PASSWORD, {
-        reset_token: resetToken,
-        new_password: newPassword
+      console.log('🔍 DEBUG - Setting new password with:', {
+        email,
+        otp,
+        new_password: newPassword,
+        confirm_password: confirmPassword
       });
+
+      const { data } = await api.post<SetNewPasswordResponse>(ENDPOINTS.SET_NEW_PASSWORD, {
+        email: email,
+        otp: otp,
+        new_password: newPassword,
+        confirm_password: confirmPassword
+      });
+
+      console.log('🔍 DEBUG - Password reset successful:', data);
+      
       toast({ 
         title: 'Success',
         description: data.message || 'Your password has been reset successfully.'
       });
       navigate('/auth/login');
     } catch (error: any) {
+      console.error('🔍 DEBUG - Password reset error:', error);
+      
+      const errorMessage = error?.response?.data?.error || 
+                        error?.response?.data?.message || 
+                        'Failed to reset password. Please try again.';
+      
       toast({
         variant: 'destructive',
         title: 'Error',
-        description: error?.response?.data?.message || 'Failed to reset password. Please try again.'
+        description: errorMessage
       });
     } finally {
       setLoading(false);
