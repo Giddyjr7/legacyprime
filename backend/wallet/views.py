@@ -8,6 +8,7 @@ from .models import WithdrawalAccount
 from transactions.models import Deposit, Withdrawal
 from transactions.serializers import DepositSerializer, WithdrawalSerializer
 from rest_framework.parsers import MultiPartParser, FormParser
+from rest_framework_simplejwt.authentication import JWTAuthentication  # ADD THIS
 
 
 @method_decorator(ensure_csrf_cookie, name='dispatch')
@@ -70,18 +71,47 @@ class ConfirmDepositView(APIView):
 
 
 class WithdrawalRequestView(APIView):
+    authentication_classes = [JWTAuthentication]  # ADD THIS LINE
     permission_classes = (permissions.IsAuthenticated,)
 
     def post(self, request):
+        print("🔍 Withdrawal request received from user:", request.user.email)
+        print("🔍 Withdrawal data:", request.data)
+        
         data = request.data.copy()
+        
+        # Validate required fields
+        amount = data.get('amount')
+        method = data.get('method')
+        withdrawal_address = data.get('withdrawal_address')
+        
+        if not amount:
+            return Response({"error": "Amount is required"}, status=status.HTTP_400_BAD_REQUEST)
+        if not method:
+            return Response({"error": "Payment method is required"}, status=status.HTTP_400_BAD_REQUEST)
+        if not withdrawal_address:
+            return Response({"error": "Withdrawal address is required"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            # Convert amount to decimal if needed
+            amount = float(amount)
+            if amount <= 0:
+                return Response({"error": "Amount must be positive"}, status=status.HTTP_400_BAD_REQUEST)
+        except (ValueError, TypeError):
+            return Response({"error": "Invalid amount"}, status=status.HTTP_400_BAD_REQUEST)
+        
         serializer = WithdrawalSerializer(data=data)
         if serializer.is_valid():
-            serializer.save(user=request.user)
+            withdrawal = serializer.save(user=request.user)
+            print("🔍 Withdrawal created successfully:", withdrawal.id)
             return Response(serializer.data, status=status.HTTP_201_CREATED)
+        
+        print("🔍 Withdrawal serializer errors:", serializer.errors)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
 class WithdrawalAccountListCreateView(APIView):
+    authentication_classes = [JWTAuthentication]  # ADD THIS
     permission_classes = (permissions.IsAuthenticated,)
 
     def get(self, request):
@@ -99,6 +129,7 @@ class WithdrawalAccountListCreateView(APIView):
 
 
 class WithdrawalAccountDetailView(APIView):
+    authentication_classes = [JWTAuthentication]  # ADD THIS
     permission_classes = (permissions.IsAuthenticated,)
 
     def put(self, request, pk):

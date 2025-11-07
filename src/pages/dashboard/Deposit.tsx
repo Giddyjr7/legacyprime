@@ -1,20 +1,22 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { DashboardLoading } from '@/components/DashboardLoading';
+import { useAuth } from '@/context/AuthContext'; // Import your auth context
 
 export default function Deposit() {
   const [selectedMethod, setSelectedMethod] = useState("");
   const [amount, setAmount] = useState("");
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false); // Changed to false initially
   const navigate = useNavigate();
+  const { user, isAuthenticated } = useAuth(); // Get auth state
 
-  // Initial loading when component mounts
+  // Check authentication on component mount
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setLoading(false);
-    }, 7000);
-    return () => clearTimeout(timer);
-  }, []);
+    if (!isAuthenticated) {
+      navigate('/auth/login');
+      return;
+    }
+  }, [isAuthenticated, navigate]);
 
   const paymentMethods = [
     { name: "BITCOIN", icon: "₿" },
@@ -26,32 +28,33 @@ export default function Deposit() {
   // Handle Confirm Deposit
   const handleConfirm = async () => {
     try {
-      setLoading(true);
+      if (!isAuthenticated) {
+        alert("Please log in to continue");
+        navigate('/auth/login');
+        return;
+      }
+
       if (!selectedMethod) {
         alert("Please select a payment method");
-        setLoading(false);
         return;
       }
 
       if (!amount || parseFloat(amount) <= 0) {
         alert("Please enter a valid amount");
-        setLoading(false);
         return;
       }
 
-      // Ensure minimum 10 seconds loading time
-      const startTime = Date.now();
-      await new Promise(resolve => {
-        const timeElapsed = Date.now() - startTime;
-        const remainingTime = Math.max(0, 10000 - timeElapsed);
-        setTimeout(resolve, remainingTime);
-      });
+      setLoading(true);
+
+      // Short, reasonable loading time
+      await new Promise(resolve => setTimeout(resolve, 1000));
 
       navigate("/dashboard/confirm-deposit", {
         state: {
           method: selectedMethod,
           amount: parseFloat(amount),
-          fee: 1.5, // Example fee for now
+          fee: 1.5,
+          userEmail: user?.email, // Pass user info if needed
         },
       });
     } catch (error) {
@@ -112,6 +115,8 @@ export default function Deposit() {
                 onChange={(e) => setAmount(e.target.value)}
                 placeholder="0.00"
                 className="ml-2 flex-1 bg-transparent text-sm focus:outline-none"
+                min="1"
+                max="1000000"
               />
             </div>
           </div>
@@ -147,10 +152,14 @@ export default function Deposit() {
           {/* Confirm Button */}
           <button
             onClick={handleConfirm}
-            disabled={!selectedMethod || !amount}
-            className={`w-full rounded-lg px-4 py-2 font-medium text-primary-foreground ${!selectedMethod || !amount ? 'bg-muted cursor-not-allowed opacity-60' : 'bg-primary hover:opacity-90'}`}
+            disabled={!selectedMethod || !amount || loading}
+            className={`w-full rounded-lg px-4 py-2 font-medium text-primary-foreground ${
+              !selectedMethod || !amount || loading 
+                ? 'bg-muted cursor-not-allowed opacity-60' 
+                : 'bg-primary hover:opacity-90'
+            }`}
           >
-            Confirm Deposit
+            {loading ? "Processing..." : "Confirm Deposit"}
           </button>
 
           {/* Info */}

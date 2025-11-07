@@ -54,12 +54,12 @@ INSTALLED_APPS = [
 
 # --- MIDDLEWARE ---
 MIDDLEWARE = [
-    'corsheaders.middleware.CorsMiddleware',
+    'corsheaders.middleware.CorsMiddleware',  # Keep this at the top
     'django.middleware.security.SecurityMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
-    'django.middleware.csrf.CsrfViewMiddleware',  # Keep for admin
+    'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
@@ -106,19 +106,49 @@ CHANNEL_LAYERS = {'default': {'BACKEND': 'channels.layers.InMemoryChannelLayer'}
 # --- USER MODEL ---
 AUTH_USER_MODEL = 'accounts.User'
 
-# --- CORS ---
-CORS_ALLOW_ALL_ORIGINS = True  # For development, can restrict in production
+# --- CORS --- (UPDATED SECTION)
+# Remove this line - it causes the wildcard issue with credentials
+# CORS_ALLOW_ALL_ORIGINS = True
+
+# Add these specific origins instead:
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:8080",
+    "http://127.0.0.1:8080",
+    "https://legacyprime.vercel.app",
+    "https://legacy-prime.vercel.app",
+]
+
+# For production, you might want to add your render domain too
+if RENDER_EXTERNAL_HOSTNAME:
+    CORS_ALLOWED_ORIGINS.append(f"https://{RENDER_DOMAIN}")
+
+# Set to False since we're using JWT tokens in headers, not cookies
+CORS_ALLOW_CREDENTIALS = False
+
+# Additional CORS settings for better security
 CORS_ALLOW_HEADERS = [
     'accept',
     'accept-encoding',
-    'authorization',
+    'authorization',  # Important for JWT
     'content-type',
     'dnt',
     'origin',
     'user-agent',
     'x-requested-with',
+    'x-csrftoken',  # Keep for admin if needed
 ]
-CORS_ALLOW_METHODS = ['DELETE', 'GET', 'OPTIONS', 'PATCH', 'POST', 'PUT']
+
+CORS_ALLOW_METHODS = [
+    'DELETE',
+    'GET',
+    'OPTIONS',
+    'PATCH',
+    'POST',
+    'PUT',
+]
+
+# Optional: Expose additional headers if needed
+CORS_EXPOSE_HEADERS = ['Content-Type', 'Authorization']
 
 # --- JWT CONFIGURATION ---
 SIMPLE_JWT = {
@@ -214,6 +244,11 @@ LOGGING = {
             'handlers': ['console'],
             'level': 'INFO',
             'propagate': True,
+        },
+        'corsheaders': {
+            'handlers': ['console'],
+            'level': 'DEBUG' if DEBUG else 'INFO',
+            'propagate': False,
         },
     },
 }

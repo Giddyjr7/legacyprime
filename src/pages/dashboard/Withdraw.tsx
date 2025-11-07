@@ -3,29 +3,139 @@ import { useNavigate } from "react-router-dom";
 import { api } from "@/utils/api";
 import { ENDPOINTS } from "@/config/api";
 import { DashboardLoading } from '@/components/DashboardLoading';
+import { useAuth } from '@/context/AuthContext';
+import { useToast } from "@/hooks/use-toast";
 
 export default function Withdraw() {
   const [selectedMethod, setSelectedMethod] = useState("");
   const [amount, setAmount] = useState("");
-  const [loading, setLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
+  const [walletAddress, setWalletAddress] = useState("");
   const navigate = useNavigate();
+  const { user, isAuthenticated, token } = useAuth();
+  const { toast } = useToast();
 
-  // Initial loading when component mounts
+  // Check authentication on component mount
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setLoading(false);
-    }, 7000);
-    return () => clearTimeout(timer);
-  }, []);
+    if (!isAuthenticated) {
+      navigate('/auth/login');
+      return;
+    }
+  }, [isAuthenticated, navigate]);
 
   const paymentMethods = [
-    { name: "USDT BEP20", icon: "🟢" },
-    { name: "USDT TRC20", icon: "💠" },
-    { name: "BITCOIN", icon: "₿" },
+    { name: "USDT BEP20", icon: "🟢", address: "Enter your USDT BEP20 address" },
+    { name: "USDT TRC20", icon: "💠", address: "Enter your USDT TRC20 address" },
+    { name: "BITCOIN", icon: "₿", address: "Enter your Bitcoin address" },
   ];
 
-  if (loading) {
-    return <DashboardLoading message="Processing withdrawal..." />;
+  const handleWithdraw = async () => {
+    if (!isAuthenticated) {
+      toast({
+        title: 'Authentication required',
+        description: 'Please log in to continue',
+        variant: 'destructive',
+      });
+      navigate('/auth/login');
+      return;
+    }
+
+    if (!selectedMethod) {
+      toast({
+        title: 'Method required',
+        description: 'Please select a withdrawal method',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (!amount || parseFloat(amount) < 5) {
+      toast({
+        title: 'Invalid amount',
+        description: 'Please enter an amount of at least $5.00',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (!walletAddress) {
+      toast({
+        title: 'Address required',
+        description: 'Please enter your withdrawal address',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setIsLoading(true);
+
+    try {
+      console.log('Making withdrawal request with:', {
+        amount: parseFloat(amount),
+        method: selectedMethod,
+        walletAddress
+      });
+
+      // Use the api instance which should already have JWT token configured
+      const response = await api.post(ENDPOINTS.WALLET_WITHDRAW, {
+        amount: parseFloat(amount),
+        method: selectedMethod,
+        withdrawal_address: walletAddress,
+      });
+
+      console.log('Withdrawal response:', response);
+
+      // Reasonable loading time instead of fixed 10 seconds
+      await new Promise(resolve => setTimeout(resolve, 2000));
+
+      toast({
+        title: "Success",
+        description: "Your withdrawal request has been submitted and is being processed.",
+      });
+
+      navigate('/dashboard', {
+        state: { 
+          flashMessage: 'Your withdrawal is being processed and will be confirmed shortly.' 
+        }
+      });
+    } catch (error: any) {
+      console.error('Withdrawal error:', error);
+      
+      let errorMessage = 'Failed to process withdrawal request';
+      
+      if (error?.response?.data) {
+        // Handle specific error messages from backend
+        const errorData = error.response.data;
+        errorMessage = errorData.detail || errorData.error || errorData.message || errorMessage;
+        
+        // Handle insufficient funds
+        if (errorMessage.toLowerCase().includes('insufficient') || errorMessage.toLowerCase().includes('balance')) {
+          errorMessage = 'Insufficient funds for this withdrawal';
+        }
+      } else if (error?.message) {
+        errorMessage = error.message;
+      }
+
+      toast({
+        title: 'Withdrawal Failed',
+        description: errorMessage,
+        variant: 'destructive',
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Update wallet address placeholder when method changes
+  useEffect(() => {
+    const method = paymentMethods.find(m => m.name === selectedMethod);
+    if (method) {
+      setWalletAddress(""); // Clear previous address
+    }
+  }, [selectedMethod]);
+
+  if (isLoading) {
+    return <DashboardLoading message="Processing withdrawal request..." />;
   }
 
   return (
@@ -67,7 +177,7 @@ export default function Withdraw() {
         <div className="space-y-4">
           {/* Amount Input */}
           <div>
-            <label className="block text-sm font-medium">Amount</label>
+            <label className="block text-sm font-medium">Amount (USD)</label>
             <div className="mt-1 flex items-center rounded-md border border-border bg-background px-3 py-2">
               <span className="text-muted-foreground">$</span>
               <input
@@ -75,10 +185,29 @@ export default function Withdraw() {
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
                 placeholder="0.00"
+                min="5"
+                max="1000000"
+                step="0.01"
                 className="ml-2 flex-1 bg-transparent text-sm focus:outline-none"
               />
             </div>
           </div>
+
+          {/* Wallet Address Input */}
+          {selectedMethod && (
+            <div>
+              <label className="block text-sm font-medium">
+                Your {selectedMethod} Address
+              </label>
+              <input
+                type="text"
+                value={walletAddress}
+                onChange={(e) => setWalletAddress(e.target.value)}
+                placeholder={paymentMethods.find(m => m.name === selectedMethod)?.address || "Enter your wallet address"}
+                className="mt-1 w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none"
+              />
+            </div>
+          )}
 
           {/* Details */}
           <div className="space-y-2 text-sm text-muted-foreground">
@@ -91,57 +220,41 @@ export default function Withdraw() {
               <span>0.00 USD</span>
             </div>
             <div className="flex justify-between">
-              <span>Receivable</span>
-              <span>0.00 USD</span>
+              <span>You will receive</span>
+              <span>
+                {amount && parseFloat(amount) >= 5 
+                  ? `$${parseFloat(amount).toFixed(2)} USD`
+                  : "0.00 USD"
+                }
+              </span>
             </div>
             <div className="flex justify-between">
               <span>Conversion</span>
               <span>1 USD = 1.00 $</span>
             </div>
             <div className="flex justify-between">
-              <span>In $</span>
-              <span>0.00</span>
+              <span>Processing Time</span>
+              <span>1-24 hours</span>
             </div>
           </div>
 
           {/* Confirm Button */}
           <button
-            onClick={async () => {
-              if (!selectedMethod || !amount) return;
-              setLoading(true);
-              try {
-                await api.post(ENDPOINTS.WALLET_WITHDRAW, {
-                  amount: Number(amount),
-                  withdrawal_address: selectedMethod,
-                });
-
-                // Ensure minimum 10 seconds loading time
-                const startTime = Date.now();
-                await new Promise(resolve => {
-                  const timeElapsed = Date.now() - startTime;
-                  const remainingTime = Math.max(0, 10000 - timeElapsed);
-                  setTimeout(resolve, remainingTime);
-                });
-
-                navigate('/dashboard', {
-                  state: { flashMessage: 'Your withdrawal is being processed and will be confirmed shortly.' }
-                });
-              } catch (err) {
-                console.error('Withdraw error', err);
-                alert('Failed to create withdrawal');
-                setLoading(false);
-              }
-            }}
-            disabled={!selectedMethod || !amount}
-            className={`w-full rounded-lg px-4 py-2 font-medium text-primary-foreground ${!selectedMethod || !amount ? 'bg-muted cursor-not-allowed opacity-60' : 'bg-primary hover:opacity-90'}`}
+            onClick={handleWithdraw}
+            disabled={!selectedMethod || !amount || !walletAddress || isLoading || parseFloat(amount) < 5}
+            className={`w-full rounded-lg px-4 py-2 font-medium text-primary-foreground ${
+              !selectedMethod || !amount || !walletAddress || isLoading || parseFloat(amount) < 5
+                ? 'bg-muted cursor-not-allowed opacity-60'
+                : 'bg-primary hover:opacity-90'
+            }`}
           >
-            Confirm Withdraw
+            {isLoading ? "Processing..." : "Confirm Withdrawal"}
           </button>
 
           {/* Info */}
           <p className="text-xs text-muted-foreground">
             Safely withdraw your funds using our highly secure process and
-            various withdrawal method.
+            various withdrawal methods. Processing typically takes 1-24 hours.
           </p>
         </div>
       </div>

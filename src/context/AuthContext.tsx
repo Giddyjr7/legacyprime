@@ -20,6 +20,7 @@ interface RegistrationResponse {
 
 interface AuthContextType {
     user: User | null;
+    token: string | null; // ADD THIS LINE
     isLoading: boolean;
     login: (email: string, password: string) => Promise<void>;
     register: (userData: RegisterData) => Promise<RegistrationResponse>;
@@ -40,12 +41,15 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
     const [user, setUser] = useState<User | null>(null);
+    const [token, setToken] = useState<string | null>(getAccessToken()); // ADD THIS STATE
     const [isLoading, setIsLoading] = useState(true);
     const { toast } = useToast();
 
     const checkAuth = async () => {
-        const token = getAccessToken();
-        if (!token) {
+        const currentToken = getAccessToken();
+        setToken(currentToken); // UPDATE TOKEN STATE
+        
+        if (!currentToken) {
             setUser(null);
             setIsLoading(false);
             return;
@@ -61,12 +65,14 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                 console.log('User authenticated via JWT:', userData.email);
             } else {
                 setUser(null);
+                setToken(null); // CLEAR TOKEN IF NO USER DATA
             }
         } catch (error) {
             console.log('JWT auth check error:', error);
             // Clear tokens if auth check fails
             clearTokens();
             setUser(null);
+            setToken(null); // CLEAR TOKEN ON ERROR
         } finally {
             setIsLoading(false);
         }
@@ -91,6 +97,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             if (access && refresh) {
                 // Store JWT tokens
                 setTokens(access, refresh);
+                setToken(access); // UPDATE TOKEN STATE
                 
                 // Now fetch user data using the token
                 console.log('Fetching user profile with new token...');
@@ -174,6 +181,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             
             // Clear user state
             setUser(null);
+            setToken(null); // CLEAR TOKEN STATE
             
             console.log('JWT logout successful');
             
@@ -195,6 +203,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         <AuthContext.Provider 
             value={{
                 user,
+                token, // ADD THIS TO THE PROVIDER VALUE
                 isLoading,
                 login,
                 register,

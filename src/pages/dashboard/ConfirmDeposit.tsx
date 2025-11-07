@@ -6,12 +6,16 @@ import { api } from "@/utils/api";
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { DashboardLoading } from '@/components/DashboardLoading';
+import { useAuth } from '@/context/AuthContext';
+import { APIError } from "@/utils/api"; // Import APIError if available
 
 const ConfirmDeposit = () => {
   const location = useLocation();
   const { amount } = location.state || { amount: "0.00" };
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(false);
+  const { logout } = useAuth();
+  const { toast } = useToast();
 
   // Example calculation (add fee, adjust dynamically)
   const fee = 1.5;
@@ -20,7 +24,6 @@ const ConfirmDeposit = () => {
   const walletAddress = "bc1qcl84vkhs9aur0qcf02n8xfwk6pe95zrtq7f05w";
 
   const [file, setFile] = useState<File | null>(null);
-  const { toast } = useToast();
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) setFile(e.target.files[0]);
@@ -87,88 +90,37 @@ const ConfirmDeposit = () => {
                 const fd = new FormData();
                 fd.append('amount', String(amount));
                 fd.append('method', String((location.state || {}).method || ''));
-                
-                // Log file details for debugging
-                console.log('File details:', {
-                  name: file.name,
-                  type: file.type,
-                  size: file.size
-                });
-                
                 fd.append('proof_image', file, file.name);
 
-                // Ensure csrftoken cookie exists. If missing, call a lightweight endpoint
-                // that sets the cookie via ensure_csrf_cookie.
-                const getCsrfFromCookie = () => {
-                  return document.cookie.split(';').map(c => c.trim()).find(c => c.startsWith('csrftoken='))?.split('=')[1];
-                };
+                console.log('Making deposit request with api instance...');
 
-                let csrf = getCsrfFromCookie();
-                if (!csrf) {
-                  // Request the CSRF cookie from the backend
-                  await fetch(ENDPOINTS.CSRF, {
-                    method: 'GET',
-                    credentials: 'include',
-                    mode: 'cors'
-                  });
-                  csrf = getCsrfFromCookie();
-                }
+                const response = await api.post(ENDPOINTS.WALLET_DEPOSIT_REQUEST, fd);
 
-                // Use fetch directly to handle multipart and include credentials
-                console.log('Making deposit request with:', {
-                  amount,
-                  method: (location.state || {}).method,
-                  file: file?.name
-                });
+                console.log('Deposit successful:', response.data);
 
-                const res = await fetch(ENDPOINTS.WALLET_DEPOSIT_REQUEST, {
-                  method: 'POST',
-                  body: fd,
-                  credentials: 'include',
-                  headers: {
-                    'X-Requested-With': 'XMLHttpRequest',
-                    'X-CSRFToken': csrf || ''
-                  }
-                });
-
-                console.log('Response status:', res.status);
-                const responseText = await res.text();
-                console.log('Response text:', responseText);
-
-                if (!res.ok) {
-                  let errorMessage = 'Failed to submit deposit';
-                  try {
-                    const errorData = JSON.parse(responseText);
-                    errorMessage = errorData.error || errorData.message || errorMessage;
-                  } catch (e) {
-                    console.error('Error parsing error response:', e);
-                  }
-                  toast({
-                    title: 'Deposit failed',
-                    description: String(errorMessage),
-                    variant: 'destructive',
-                  });
-                  return;
-                }
-
-                const data = JSON.parse(responseText);
-                
-                // Ensure minimum 10 seconds loading time
-                const startTime = Date.now();
-                await new Promise(resolve => {
-                  const timeElapsed = Date.now() - startTime;
-                  const remainingTime = Math.max(0, 10000 - timeElapsed);
-                  setTimeout(resolve, remainingTime);
-                });
+                // Wait for 2 seconds
+                await new Promise(resolve => setTimeout(resolve, 2000));
 
                 navigate('/dashboard', {
                   state: { flashMessage: 'Your deposit is being processed and will be approved shortly' }
                 });
               } catch (err) {
                 console.error('Deposit submit error:', err);
+                let errorMessage = 'Failed to submit deposit';
+                if (err instanceof APIError) {
+                  errorMessage = err.message;
+                  // If 401, logout
+                  if (err.status === 401) {
+                    logout();
+                    navigate('/auth/login');
+                    return;
+                  }
+                } else if (err instanceof Error) {
+                  errorMessage = err.message;
+                }
                 toast({
                   title: 'Error',
-                  description: 'Failed to submit deposit',
+                  description: errorMessage,
                   variant: 'destructive',
                 });
               } finally {
@@ -178,7 +130,7 @@ const ConfirmDeposit = () => {
             disabled={isLoading}
             className="w-full bg-primary hover:opacity-90 text-primary-foreground rounded-xl"
           >
-            Pay Now
+            {isLoading ? "Processing..." : "Pay Now"}
           </Button>
         </CardContent>
       </Card>
