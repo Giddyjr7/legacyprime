@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
-import { api } from "../utils/api";
+import { api, setTokens, clearTokens, getAccessToken } from "../utils/api";
 import { ENDPOINTS } from "../config/api";
 import { useToast } from "@/hooks/use-toast";
 import { APIError } from "@/utils/api";
@@ -44,25 +44,28 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const { toast } = useToast();
 
     const checkAuth = async () => {
+        const token = getAccessToken();
+        if (!token) {
+            setUser(null);
+            setIsLoading(false);
+            return;
+        }
+
         try {
-            console.log('Checking authentication...');
-            
-            // Check if user is authenticated via profile endpoint
+            console.log('Checking JWT authentication...');
             const response = await api.get(ENDPOINTS.PROFILE);
             const userData = response.data;
             
             if (userData && userData.id) {
                 setUser(userData);
-                console.log('User authenticated:', userData.email);
+                console.log('User authenticated via JWT:', userData.email);
             } else {
                 setUser(null);
             }
         } catch (error) {
-            if (error instanceof APIError && error.status === 403) {
-                console.log('User not authenticated (403) - normal behavior');
-            } else {
-                console.log('Auth check error:', error);
-            }
+            console.log('JWT auth check error:', error);
+            // Clear tokens if auth check fails
+            clearTokens();
             setUser(null);
         } finally {
             setIsLoading(false);
@@ -75,27 +78,43 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
     const login = async (email: string, password: string) => {
         try {
-            console.log('Making login request...');
-            const response = await api.post<{ user: User; message: string }>(ENDPOINTS.LOGIN, { email, password });
+            console.log('Making JWT login request...');
             
-            // DEBUG: Log the full response
-            console.log('Login response received:', response);
+            // Call JWT token endpoint
+            const response = await api.post(ENDPOINTS.LOGIN, { email, password });
+            
+            console.log('JWT login response received:', response);
             console.log('Response data:', response.data);
             
-            if (response.data && response.data.user) {
-                setUser(response.data.user);
-                console.log('User set successfully:', response.data.user.email);
+            const { access, refresh } = response.data;
+            
+            if (access && refresh) {
+                // Store JWT tokens
+                setTokens(access, refresh);
                 
-                toast({
-                    title: "Success",
-                    description: "Logged in successfully",
-                });
+                // Now fetch user data using the token
+                console.log('Fetching user profile with new token...');
+                const userResponse = await api.get(ENDPOINTS.PROFILE);
+                const userData = userResponse.data;
+                
+                if (userData && userData.id) {
+                    setUser(userData);
+                    console.log('JWT login successful, user data set:', userData.email);
+                    
+                    toast({
+                        title: "Success",
+                        description: "Logged in successfully",
+                    });
+                } else {
+                    console.error('No user data in profile response:', userResponse.data);
+                    throw new Error('Profile response missing user data');
+                }
             } else {
-                console.error('No user data in response:', response.data);
-                throw new Error('Login response missing user data');
+                console.error('Missing tokens in response:', response.data);
+                throw new Error('Login response missing tokens');
             }
         } catch (error) {
-            console.error('Login error details:', error);
+            console.error('JWT login error details:', error);
             
             // Log the actual error response from Django
             if (error instanceof APIError) {
@@ -150,14 +169,20 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
     const logout = async () => {
         try {
-            await api.post(ENDPOINTS.LOGOUT);
+            // Clear JWT tokens from localStorage
+            clearTokens();
+            
+            // Clear user state
             setUser(null);
+            
+            console.log('JWT logout successful');
             
             toast({
                 title: "Success",
                 description: "Logged out successfully",
             });
         } catch (error) {
+            console.error('Logout error:', error);
             toast({
                 variant: "destructive",
                 title: "Error",

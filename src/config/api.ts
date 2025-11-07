@@ -19,7 +19,8 @@ export const API_BASE_URL = getApiBaseUrl();
 
 export const ENDPOINTS = {
   // Auth endpoints
-  LOGIN: `${API_BASE_URL}/accounts/login/`,
+  // Use JWT token endpoint (migrated from session-based login)
+  LOGIN: `${API_BASE_URL}/accounts/token/`,
   REGISTER: `${API_BASE_URL}/accounts/register/`,
   LOGOUT: `${API_BASE_URL}/accounts/logout/`,
   PROFILE: `${API_BASE_URL}/accounts/profile/`,

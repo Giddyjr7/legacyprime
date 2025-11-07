@@ -2,6 +2,7 @@ import os
 from pathlib import Path
 from dotenv import load_dotenv
 import dj_database_url
+from datetime import timedelta
 
 load_dotenv()
 
@@ -26,12 +27,12 @@ ALLOWED_HOSTS = [
     '127.0.0.1',
     RENDER_DOMAIN,
     VERCEL_DOMAIN,
-    'legacy-prime.vercel.app',  # Added with hyphen
+    'legacy-prime.vercel.app',
 ]
 
 extra_hosts = os.environ.get('DJANGO_ALLOWED_HOSTS', '').split(',')
 ALLOWED_HOSTS += [h.strip() for h in extra_hosts if h.strip()]
-ALLOWED_HOSTS = list(dict.fromkeys(ALLOWED_HOSTS))  # Remove duplicates
+ALLOWED_HOSTS = list(dict.fromkeys(ALLOWED_HOSTS))
 
 # --- INSTALLED APPS ---
 INSTALLED_APPS = [
@@ -42,6 +43,7 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'rest_framework',
+    'rest_framework_simplejwt',
     'corsheaders',
     'channels',
     'accounts',
@@ -57,7 +59,7 @@ MIDDLEWARE = [
     'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
-    'django.middleware.csrf.CsrfViewMiddleware',
+    'django.middleware.csrf.CsrfViewMiddleware',  # Keep for admin
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
@@ -105,22 +107,7 @@ CHANNEL_LAYERS = {'default': {'BACKEND': 'channels.layers.InMemoryChannelLayer'}
 AUTH_USER_MODEL = 'accounts.User'
 
 # --- CORS ---
-CORS_ALLOW_CREDENTIALS = True
-ENV_ORIGINS = os.environ.get('CORS_ALLOWED_ORIGINS', '').split(',')
-CORS_ALLOWED_ORIGINS = list({
-    *[
-        'http://localhost:8080',
-        'http://127.0.0.1:8080',
-        'http://localhost:5173',
-        'http://127.0.0.1:5173',
-        'http://localhost:3000',  # Added for local development
-        'http://127.0.0.1:3000',  # Added for local development
-        f'https://{RENDER_DOMAIN}',
-        f'https://{VERCEL_DOMAIN}',
-        'https://legacy-prime.vercel.app',  # ADDED - with hyphen!
-    ],
-    *[o.strip() for o in ENV_ORIGINS if o.strip()],
-})
+CORS_ALLOW_ALL_ORIGINS = True  # For development, can restrict in production
 CORS_ALLOW_HEADERS = [
     'accept',
     'accept-encoding',
@@ -129,46 +116,47 @@ CORS_ALLOW_HEADERS = [
     'dnt',
     'origin',
     'user-agent',
-    'x-csrftoken',
     'x-requested-with',
 ]
 CORS_ALLOW_METHODS = ['DELETE', 'GET', 'OPTIONS', 'PATCH', 'POST', 'PUT']
-CORS_EXPOSE_HEADERS = ['Content-type', 'X-CSRFToken']
-CORS_PREFLIGHT_MAX_AGE = 86400
 
-# --- SESSION SETTINGS ---
-SESSION_ENGINE = 'django.contrib.sessions.backends.db'
-SESSION_COOKIE_NAME = os.environ.get('SESSION_COOKIE_NAME', 'legacyprime_sessionid')
-SESSION_COOKIE_HTTPONLY = True
-SESSION_COOKIE_AGE = 7 * 24 * 60 * 60  # 1 week
-SESSION_EXPIRE_AT_BROWSER_CLOSE = False
-SESSION_SAVE_EVERY_REQUEST = True
+# --- JWT CONFIGURATION ---
+SIMPLE_JWT = {
+    'ACCESS_TOKEN_LIFETIME': timedelta(days=1),
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
+    'ROTATE_REFRESH_TOKENS': True,
+    'BLACKLIST_AFTER_ROTATION': True,
+    'UPDATE_LAST_LOGIN': True,
+    'ALGORITHM': 'HS256',
+    'SIGNING_KEY': SECRET_KEY,
+    'VERIFYING_KEY': None,
+    'AUDIENCE': None,
+    'ISSUER': None,
+    'JWK_URL': None,
+    'LEEWAY': 0,
+    'AUTH_HEADER_TYPES': ('Bearer',),
+    'AUTH_HEADER_NAME': 'HTTP_AUTHORIZATION',
+    'USER_ID_FIELD': 'id',
+    'USER_ID_CLAIM': 'user_id',
+    'USER_AUTHENTICATION_RULE': 'rest_framework_simplejwt.authentication.default_user_authentication_rule',
+    'AUTH_TOKEN_CLASSES': ('rest_framework_simplejwt.tokens.AccessToken',),
+    'TOKEN_TYPE_CLAIM': 'token_type',
+    'TOKEN_USER_CLASS': 'rest_framework_simplejwt.models.TokenUser',
+    'JTI_CLAIM': 'jti',
+    'SLIDING_TOKEN_REFRESH_EXP_CLAIM': 'refresh_exp',
+    'SLIDING_TOKEN_LIFETIME': timedelta(minutes=5),
+    'SLIDING_TOKEN_REFRESH_LIFETIME': timedelta(days=1),
+}
 
-if IS_PRODUCTION:
-    SESSION_COOKIE_SAMESITE = 'None'
-    SESSION_COOKIE_SECURE = True
-    SESSION_COOKIE_DOMAIN = RENDER_DOMAIN
-else:
-    SESSION_COOKIE_SAMESITE = 'Lax'
-    SESSION_COOKIE_SECURE = False
-    SESSION_COOKIE_DOMAIN = None
-
-# --- CSRF ---
-CSRF_COOKIE_HTTPONLY = False
-CSRF_USE_SESSIONS = False
-CSRF_COOKIE_SAMESITE = 'None' if IS_PRODUCTION else 'Lax'
-CSRF_COOKIE_SECURE = IS_PRODUCTION
-CSRF_TRUSTED_ORIGINS = [
-    f'https://{VERCEL_DOMAIN}',
-    f'https://{RENDER_DOMAIN}',
-    'https://legacy-prime.vercel.app',  # ADDED - with hyphen!
-    'http://localhost:5173',
-    'http://127.0.0.1:5173',
-    'http://localhost:3000',  # Added
-    'http://127.0.0.1:3000',  # Added
-]
-if IS_PRODUCTION:
-    CSRF_COOKIE_DOMAIN = RENDER_DOMAIN
+# --- REST FRAMEWORK ---
+REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': [
+        'rest_framework_simplejwt.authentication.JWTAuthentication',
+    ],
+    'DEFAULT_PERMISSION_CLASSES': [
+        'rest_framework.permissions.IsAuthenticated',
+    ],
+}
 
 # --- STATIC & MEDIA ---
 STATIC_URL = '/static/'
@@ -184,12 +172,6 @@ TIME_ZONE = 'UTC'
 USE_I18N = True
 USE_TZ = True
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
-
-# --- REST FRAMEWORK ---
-REST_FRAMEWORK = {
-    'DEFAULT_AUTHENTICATION_CLASSES': ['rest_framework.authentication.SessionAuthentication'],
-    'DEFAULT_PERMISSION_CLASSES': ['rest_framework.permissions.IsAuthenticated'],
-}
 
 # --- EMAIL SETTINGS (SENDGRID) ---
 EMAIL_BACKEND = os.environ.get('EMAIL_BACKEND', 'legacyprime.sendgrid_backend.SendGridEmailBackend')

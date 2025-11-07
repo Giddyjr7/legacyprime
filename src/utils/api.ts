@@ -26,104 +26,123 @@ const getApiBaseUrl = () => {
 export const API_BASE_URL = getApiBaseUrl();
 
 export const ENDPOINTS = {
-    LOGIN: `${API_BASE_URL}/accounts/login/`,
+    // JWT Authentication endpoints
+    LOGIN: `${API_BASE_URL}/accounts/token/`,
+    REFRESH_TOKEN: `${API_BASE_URL}/accounts/token/refresh/`,
+    
+    // User endpoints
     REGISTER: `${API_BASE_URL}/accounts/register/`,
-    LOGOUT: `${API_BASE_URL}/accounts/logout/`,
     PROFILE: `${API_BASE_URL}/accounts/profile/`,
     VERIFY_OTP: `${API_BASE_URL}/accounts/verify-otp/`,
     RESEND_OTP: `${API_BASE_URL}/accounts/resend-otp/`,
+    CHANGE_PASSWORD: `${API_BASE_URL}/accounts/change-password/`,
+    
+    // Password reset endpoints
     REQUEST_PASSWORD_RESET: `${API_BASE_URL}/accounts/request-password-reset/`,
     VERIFY_PASSWORD_RESET_OTP: `${API_BASE_URL}/accounts/verify-password-reset-otp/`,
     SET_NEW_PASSWORD: `${API_BASE_URL}/accounts/set-new-password/`,
-    CSRF: `${API_BASE_URL}/accounts/csrf/`,
+    
+    // Dashboard endpoints
     DASHBOARD_SUMMARY: `${API_BASE_URL}/transactions/dashboard/summary/`,
     DASHBOARD_PERFORMANCE: `${API_BASE_URL}/transactions/dashboard/performance/`,
+    
+    // Wallet endpoints
     WALLET_DEPOSIT_REQUEST: `${API_BASE_URL}/wallet/deposit/request/`,
     WALLET_DEPOSIT_CONFIRM: (id: number) => `${API_BASE_URL}/wallet/deposit/${id}/confirm/`,
     WALLET_WITHDRAW: `${API_BASE_URL}/wallet/withdraw/`,
     WALLET_WITHDRAWAL_ACCOUNTS: `${API_BASE_URL}/wallet/withdrawal-accounts/`,
+    
+    // Transaction endpoints
     TRANSACTIONS: `${API_BASE_URL}/transactions/`,
     CREATE_TRANSACTION: `${API_BASE_URL}/transactions/create/`,
+    
+    // Notification endpoints
     NOTIFICATIONS: `${API_BASE_URL}/notifications/`,
     MARK_NOTIFICATION_READ: (id: string) => `${API_BASE_URL}/notifications/${id}/mark-read/`,
-    CHANGE_PASSWORD: `${API_BASE_URL}/accounts/change-password/`,
 };
 
-// Simple CSRF token management
-const getCSRFToken = (): string | null => {
-    if (typeof document === 'undefined') return null;
-    const match = document.cookie.match(/csrftoken=([^;]+)/);
-    return match ? match[1] : null;
+// JWT Token management
+const getAccessToken = (): string | null => {
+    return localStorage.getItem('access_token');
 };
 
-let csrfToken: string | null = getCSRFToken();
+const getRefreshToken = (): string | null => {
+    return localStorage.getItem('refresh_token');
+};
+
+export const setTokens = (access: string, refresh: string): void => {
+    localStorage.setItem('access_token', access);
+    localStorage.setItem('refresh_token', refresh);
+};
+
+export const clearTokens = (): void => {
+    localStorage.removeItem('access_token');
+    localStorage.removeItem('refresh_token');
+};
 
 export const api: AxiosInstance = axios.create({
     baseURL: API_BASE_URL,
-    withCredentials: true,
+    // Remove withCredentials since we're using JWT tokens in headers
 });
 
-// Request interceptor - attach CSRF token
+// Request interceptor - attach JWT token
 api.interceptors.request.use((config) => {
-    // Skip for CSRF endpoint
-    if (config.url?.includes('/accounts/csrf/')) {
-        return config;
+    const token = getAccessToken();
+    if (token && config.headers) {
+        config.headers.Authorization = `Bearer ${token}`;
     }
-
-    // Attach CSRF token for non-GET requests
-    if (config.method && !['GET', 'HEAD', 'OPTIONS'].includes(config.method.toUpperCase())) {
-        if (csrfToken && config.headers) {
-            config.headers['X-CSRFToken'] = csrfToken;
-        }
-    }
-    
     return config;
 });
 
-// Response interceptor - handle CSRF errors
+// Response interceptor - handle token refresh
 api.interceptors.response.use(
     (response) => response,
     async (error) => {
-        if (axios.isAxiosError(error) && error.response) {
-            const { status, data, config } = error.response;
+        const originalRequest = error.config;
 
-            // Handle CSRF errors
-            if (status === 403 && 
-                typeof data === 'object' && 
-                data !== null &&
-                'detail' in data && 
-                typeof data.detail === 'string' && 
-                data.detail.toLowerCase().includes('csrf')) {
-                
-                console.log('CSRF token invalid, fetching new one...');
+        // If error is 401 and we haven't already tried to refresh the token
+        if (error.response?.status === 401 && !originalRequest._retry) {
+            originalRequest._retry = true;
 
+            const refreshToken = getRefreshToken();
+            if (refreshToken) {
                 try {
-                    // Fetch new CSRF token
-                    await axios.get(ENDPOINTS.CSRF, { withCredentials: true });
-                    csrfToken = getCSRFToken();
+                    console.log('Attempting to refresh token...');
+                    const response = await axios.post(ENDPOINTS.REFRESH_TOKEN, {
+                        refresh: refreshToken
+                    });
+
+                    const { access } = response.data;
                     
-                    console.log('New CSRF token:', csrfToken);
-
-                    // Retry the original request with new token
-                    if (config && csrfToken) {
-                        const retryConfig = {
-                            ...config,
-                            headers: {
-                                ...config.headers,
-                                'X-CSRFToken': csrfToken
-                            }
-                        };
-                        return axios(retryConfig);
-                    }
+                    // Store the new access token
+                    localStorage.setItem('access_token', access);
+                    
+                    console.log('Token refreshed successfully');
+                    
+                    // Retry the original request with the new token
+                    originalRequest.headers.Authorization = `Bearer ${access}`;
+                    return axios(originalRequest);
                 } catch (refreshError) {
-                    console.error('Failed to refresh CSRF token:', refreshError);
+                    console.error('Token refresh failed:', refreshError);
+                    
+                    // Clear tokens and redirect to login if refresh fails
+                    clearTokens();
+                    window.location.href = '/auth/login';
+                    return Promise.reject(refreshError);
                 }
+            } else {
+                // No refresh token available, redirect to login
+                clearTokens();
+                window.location.href = '/auth/login';
             }
+        }
 
+        // For other errors, wrap in APIError
+        if (axios.isAxiosError(error) && error.response) {
             throw new APIError(
                 error.message,
-                status,
-                data
+                error.response.status,
+                error.response.data
             );
         }
 
@@ -131,17 +150,5 @@ api.interceptors.response.use(
     }
 );
 
-// Export CSRF functions
-export const ensureCSRFToken = async (): Promise<string | null> => {
-    if (!csrfToken) {
-        try {
-            await axios.get(ENDPOINTS.CSRF, { withCredentials: true });
-            csrfToken = getCSRFToken();
-        } catch (error) {
-            console.warn('Failed to ensure CSRF token:', error);
-        }
-    }
-    return csrfToken;
-};
-
-export const getCurrentCSRFToken = (): string | null => csrfToken;
+// Export token functions for use in components
+export { getAccessToken, getRefreshToken };

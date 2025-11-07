@@ -6,7 +6,7 @@ import { Link, useNavigate, useLocation } from "react-router-dom"
 import { Eye, EyeOff } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { useToast } from "@/hooks/use-toast";
-import { APIError, ensureCSRFToken } from "@/utils/api";
+import { APIError } from "@/utils/api";
 
 const Login = () => {
   const navigate = useNavigate();
@@ -29,10 +29,6 @@ const Login = () => {
     setServerErrors({});
 
     try {
-      console.log('Ensuring CSRF token...');
-      await ensureCSRFToken();
-      console.log('CSRF token ensured, proceeding with login...');
-
       console.log('Login payload:', { email, password });
       await login(email, password);
 

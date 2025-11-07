@@ -6,8 +6,6 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status, permissions
 from django.contrib.auth import get_user_model
-from django.core.mail import EmailMessage
-from django.template.loader import render_to_string
 from django.conf import settings
 import logging
 from notifications.utils import send_transactional_email
@@ -25,7 +23,6 @@ class RequestPasswordResetView(APIView):
     Step 1: Request password reset OTP
     POST /api/auth/request-password-reset/
     """
-    authentication_classes = []
     permission_classes = [permissions.AllowAny]
 
     def post(self, request):
@@ -60,7 +57,6 @@ class RequestPasswordResetView(APIView):
             'project_name': settings.PROJECT_NAME,
             'otp_code': otp_instance.otp
         }
-    # Template will be rendered by send_transactional_email
 
         try:
             logger = logging.getLogger(__name__)
@@ -97,7 +93,6 @@ class VerifyPasswordResetOTPView(APIView):
     Step 2: Verify OTP and get reset token
     POST /api/auth/verify-password-reset-otp/
     """
-    authentication_classes = []
     permission_classes = [permissions.AllowAny]
 
     def post(self, request):
@@ -152,7 +147,6 @@ class SetNewPasswordView(APIView):
     Step 3: Set new password using reset token
     POST /api/auth/set-new-password/
     """
-    authentication_classes = []
     permission_classes = [permissions.AllowAny]
 
     def post(self, request):
