@@ -140,39 +140,58 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
     const register = async (userData: RegisterData): Promise<RegistrationResponse> => {
         try {
-            console.log('Sending registration request:', userData);
-            const response = await api.post<RegistrationResponse>(ENDPOINTS.REGISTER, userData);
-            console.log('Registration response:', response);
+            console.log('Sending JWT registration request:', userData);
             
-            // Don't set user here as they need to verify OTP first
+            const response = await api.post<RegistrationResponse>(ENDPOINTS.REGISTER, userData);
+            
+            console.log('JWT Registration response:', response);
+            
+            // Check if response is successful (status 200-299)
+            if (response.status >= 200 && response.status < 300) {
             toast({
                 title: "Success",
                 description: response.data.message || "Verification code sent to your email",
             });
             return response.data;
-        } catch (error) {
-            console.error('Registration error:', error);
-            
-            let errorMessage = "Registration failed";
-            if (error instanceof APIError) {
-                errorMessage = error.message; 
-            } else if (error instanceof Error) {
-                errorMessage = error.message;
+            } else {
+            // Handle non-success status codes
+            throw new APIError(
+                response.data.message || 'Registration failed',
+                response.status,
+                response.data
+            );
             }
+        } catch (error) {
+            console.error('JWT Registration error:', error);
             
-            // Check if error message contains email sending failure
-            if (errorMessage.toLowerCase().includes('verification email')) {
-                errorMessage = "Failed to send verification email. Please try again or contact support.";
+            // Only throw error if it's not a successful response
+            if (error instanceof APIError && error.status >= 400) {
+            let errorMessage = error.message;
+            
+            // Handle specific error cases
+            if (error.status === 400) {
+                errorMessage = "Please check your registration details and try again.";
+            } else if (error.status === 500) {
+                errorMessage = "Server error during registration. Please try again.";
             }
             
             toast({
                 variant: "destructive",
-                title: "Error",
+                title: "Registration Failed",
                 description: errorMessage,
             });
+            } else if (error instanceof Error) {
+            // Network or other errors
+            toast({
+                variant: "destructive",
+                title: "Registration Failed",
+                description: error.message || "Network error. Please check your connection.",
+            });
+            }
+            
             throw error;
         }
-    };
+        };
 
     const logout = async () => {
         try {

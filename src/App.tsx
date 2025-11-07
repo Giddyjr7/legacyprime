@@ -72,6 +72,8 @@ const App = () => (
           {/* Backwards-compatible redirects for legacy links */}
           <Route path="/login" element={<Navigate to="/auth/login" replace />} />
           <Route path="/signup" element={<Navigate to="/auth/signup" replace />} />
+          <Route path="/reset-password" element={<Navigate to="/auth/reset-password" replace />} />
+          <Route path="/verify-otp" element={<Navigate to="/auth/verify-otp" replace />} />
           <Route path="/auth/login" element={<Login />} />
           <Route path="/auth/signup" element={<Signup />} />
           <Route path="/auth/reset-password" element={<ResetPassword />} />

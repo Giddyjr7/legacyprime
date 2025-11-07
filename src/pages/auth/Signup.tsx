@@ -43,7 +43,7 @@ const Signup = () => {
       });
 
       // Redirect to OTP verification with email in query params
-      navigate(`/verify-otp?email=${encodeURIComponent(data.email)}`);
+      navigate(`/auth/verify-otp?email=${encodeURIComponent(data.email)}`);
     } catch (error) {
       // If server returned validation errors, map them to the form
       if (error instanceof APIError && error.status === 400 && error.data) {

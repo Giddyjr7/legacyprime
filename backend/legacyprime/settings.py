@@ -210,6 +210,7 @@ DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', '')
 EMAIL_HOST_PASSWORD = os.environ.get('SENDGRID_API_KEY', '')
 EMAIL_DEBUG = DEBUG
 
+PROJECT_NAME = "Legacy Prime"
 # --- LOGGING CONFIGURATION ---
 LOGGING = {
     'version': 1,
