@@ -10,6 +10,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { signupSchema, type SignupFormData } from "@/lib/validation";
 import { APIError } from "@/utils/api";
+import Logo from "@/assets/LEGACYPRIME-LOGO-WEB-ICON.png";
 
 const Signup = () => {
   const navigate = useNavigate();
@@ -64,15 +65,29 @@ const Signup = () => {
     }
   };
 
+  if (isSubmitting) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-hero hero-glow text-foreground">
+        <div className="text-center">
+          <div className="w-16 h-16 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-lg font-medium text-muted-foreground">Creating your account...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background text-foreground">
-      <Card className="w-full max-w-md bg-card text-card-foreground shadow-lg">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-hero hero-glow text-foreground">
+      <Card className="w-full max-w-md bg-card text-card-foreground shadow-xl shadow-primary/10 border border-border/40">
         <CardHeader>
-          <CardTitle className="text-2xl font-semibold text-center">Create Account</CardTitle>
+          <div className="flex flex-col items-center gap-3 py-4">
+            <img src={Logo} alt="LegacyPrime logo" className="w-12 h-12" />
+            <CardTitle className="text-2xl font-semibold text-center">Create Account</CardTitle>
+          </div>
         </CardHeader>
 
-        <CardContent className="space-y-4">
-          <form onSubmit={handleSubmit(handleCreateAccount)} className="space-y-4">
+        <CardContent className="space-y-6 py-6 px-4">
+          <form onSubmit={handleSubmit(handleCreateAccount)} className="space-y-5">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Input

@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from "@/components/ui/card"
 import { Eye, EyeOff } from "lucide-react";
+import Logo from "@/assets/LEGACYPRIME-LOGO-WEB-ICON.png";
 
 const ConfirmPassword = () => {
   const [password, setPassword] = useState("")
@@ -26,16 +27,17 @@ const ConfirmPassword = () => {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background text-foreground">
-      <Card className="w-full max-w-md bg-card text-card-foreground shadow-lg">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-hero hero-glow text-foreground">
+      <Card className="w-full max-w-md bg-card text-card-foreground shadow-xl shadow-primary/10 border border-border/40">
         <CardHeader>
-          <CardTitle className="text-2xl font-semibold text-center">
-            Reset Password
-          </CardTitle>
+          <div className="flex flex-col items-center gap-3 py-4">
+            <img src={Logo} alt="LegacyPrime logo" className="w-12 h-12" />
+            <CardTitle className="text-2xl font-semibold text-center">Reset Password</CardTitle>
+          </div>
         </CardHeader>
 
         <form onSubmit={handleSubmit}>
-          <CardContent className="space-y-4">
+          <CardContent className="space-y-6 py-6 px-4">
             <div className="relative">
               <Input
                 type={showPassword ? "text" : "password"}

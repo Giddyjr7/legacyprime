@@ -7,6 +7,7 @@ import { useAuth } from "@/context/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { api } from "@/utils/api";
 import { ENDPOINTS } from "@/config/api";
+import Logo from "@/assets/LEGACYPRIME-LOGO-WEB-ICON.png";
 
 const VerifyOtp = () => {
   const location = useLocation();
@@ -94,15 +95,28 @@ const VerifyOtp = () => {
       setResendLoading(false);
     }
   };
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-hero hero-glow text-foreground">
+        <div className="text-center">
+          <div className="w-16 h-16 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-lg font-medium text-muted-foreground">Verifying...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background text-foreground">
-      <Card className="w-full max-w-md bg-card text-card-foreground shadow-lg">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-hero hero-glow text-foreground">
+      <Card className="w-full max-w-md bg-card text-card-foreground shadow-xl shadow-primary/10 border border-border/40">
         <CardHeader>
-          <CardTitle className="text-2xl font-semibold text-center">Verify Email</CardTitle>
+          <div className="flex flex-col items-center gap-3 py-4">
+            <img src={Logo} alt="LegacyPrime logo" className="w-12 h-12" />
+            <CardTitle className="text-2xl font-semibold text-center">Verify Email</CardTitle>
+          </div>
         </CardHeader>
 
-        <CardContent className="space-y-4">
+        <CardContent className="space-y-6 py-6 px-4">
           <p className="text-sm text-muted-foreground text-center">
             We sent a 6-digit code to <strong>{email || "your email"}</strong>. Enter it below.
           </p>
