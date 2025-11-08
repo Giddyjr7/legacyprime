@@ -51,6 +51,23 @@ class User(AbstractUser):
         verbose_name = _('user')
         verbose_name_plural = _('users')
 
+class PendingRegistration(models.Model):
+    email = models.EmailField(unique=True)
+    username = models.CharField(max_length=150, unique=True)
+    first_name = models.CharField(max_length=150)
+    last_name = models.CharField(max_length=150)
+    password = models.CharField(max_length=128)  # Hashed password will be stored
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return self.email
+
+    class Meta:
+        # Auto-delete records after 24 hours
+        indexes = [
+            models.Index(fields=['created_at']),
+        ]
+
 class OTP(models.Model):
     email = models.EmailField()
     otp = models.CharField(max_length=6)
@@ -78,3 +95,6 @@ class OTP(models.Model):
         now = timezone.now()
         valid_until = self.created_at + timedelta(minutes=10)
         return now <= valid_until
+    
+    def __str__(self):
+        return f'OTP for {self.email} - {"Used" if self.is_used else "Unused"}'

@@ -1,4 +1,5 @@
 from django.contrib.auth import authenticate, get_user_model
+from django.contrib.auth.hashers import make_password
 from rest_framework import status, permissions, parsers
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -8,9 +9,10 @@ from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from rest_framework_simplejwt.views import TokenObtainPairView
 from django.core.mail import EmailMessage
 from django.conf import settings
+from django.db import models
 import logging
 from notifications.utils import send_transactional_email
-from .models import OTP
+from .models import OTP, PendingRegistration
 from .serializers import UserSerializer, UserProfileSerializer, ChangePasswordSerializer
 from .serializers_registration import UserRegistrationSerializer as RegisterSerializer
 from rest_framework_simplejwt.authentication import JWTAuthentication
@@ -27,9 +29,26 @@ class RegisterView(APIView):
             if not serializer.is_valid():
                 return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-            # Create inactive user
-            user = serializer.save(is_active=False, is_email_verified=False)
-            email = user.email
+            email = serializer.validated_data['email']
+            username = serializer.validated_data['username']
+
+            # Check if a pending registration already exists
+            existing_pending = PendingRegistration.objects.filter(
+                models.Q(email=email) | models.Q(username=username)
+            ).first()
+
+            if existing_pending:
+                # Delete existing pending registration
+                existing_pending.delete()
+
+            # Create pending registration
+            pending_registration = PendingRegistration.objects.create(
+                email=email,
+                username=username,
+                first_name=serializer.validated_data['first_name'],
+                last_name=serializer.validated_data['last_name'],
+                password=make_password(serializer.validated_data['password'])
+            )
 
             # Generate OTP
             otp_instance = OTP.generate_otp(email)
@@ -56,6 +75,7 @@ class RegisterView(APIView):
 
                 if not sent:
                     logger.error('send_transactional_email returned 0 for %s', email)
+                    pending_registration.delete()
                     return Response({
                         'message': 'Failed to send verification email',
                         'error': 'send_failed'
@@ -63,6 +83,7 @@ class RegisterView(APIView):
 
             except Exception as e:
                 logger.exception('Unexpected error when sending verification email')
+                pending_registration.delete()
                 return Response({
                     'message': 'An unexpected error occurred while sending email. Please try again.',
                     'error': str(e)
@@ -147,15 +168,24 @@ class VerifyOTPView(APIView):
             otp_obj.save()
 
             try:
-                # Find the pending user
-                user = User.objects.get(email=email, is_active=False, is_email_verified=False)
+                # Find the pending registration
+                pending_registration = PendingRegistration.objects.get(email=email)
+
+                # Create and activate the user
+                user = User.objects.create(
+                    email=pending_registration.email,
+                    username=pending_registration.username,
+                    first_name=pending_registration.first_name,
+                    last_name=pending_registration.last_name,
+                    password=pending_registration.password,  # Already hashed
+                    is_active=True,
+                    is_email_verified=True
+                )
                 
-                # Activate user
-                user.is_active = True
-                user.is_email_verified = True
-                user.save()
+                # Delete the pending registration
+                pending_registration.delete()
                 
-                # Generate JWT tokens for the newly activated user
+                # Generate JWT tokens for the newly created user
                 refresh = RefreshToken.for_user(user)
                 
                 return Response({
@@ -165,15 +195,15 @@ class VerifyOTPView(APIView):
                     "message": "Email verified and account activated successfully"
                 }, status=status.HTTP_200_OK)
                 
-            except User.DoesNotExist:
+            except PendingRegistration.DoesNotExist:
                 return Response({
                     "message": "No pending registration found for this email"
                 }, status=status.HTTP_400_BAD_REQUEST)
                 
             except Exception as e:
-                print("Error activating user:", str(e))
+                logging.getLogger(__name__).exception('Error creating user account')
                 return Response({
-                    "message": "Error activating user account",
+                    "message": "Error creating user account",
                     "error": str(e)
                 }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 

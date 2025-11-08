@@ -1,6 +1,7 @@
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
 from django.core.validators import RegexValidator
+from .models import PendingRegistration
 import re
 
 User = get_user_model()
@@ -30,8 +31,9 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
                 'Username can only contain letters and numbers.'
             )
         
-        # Check uniqueness
-        if User.objects.filter(username=value).exists():
+        # Check uniqueness in both User and PendingRegistration models
+        if User.objects.filter(username=value).exists() or \
+           PendingRegistration.objects.filter(username=value).exists():
             raise serializers.ValidationError('This username is already taken.')
         
         return value
