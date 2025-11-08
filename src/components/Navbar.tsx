@@ -1,11 +1,20 @@
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Menu, X } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
+import { useAuth } from '@/context/AuthContext';
 
 const Navbar = () => {
   const [isScrolled, setIsScrolled] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const { isAuthenticated, logout } = useAuth();
+  const navigate = useNavigate();
+
+  const handleLogout = async () => {
+    await logout();
+    navigate('/');
+    setIsMobileMenuOpen(false);
+  };
 
   useEffect(() => {
     const handleScroll = () => {
@@ -85,16 +94,34 @@ const Navbar = () => {
 
         {/* Desktop Auth buttons */}
         <div className="hidden lg:flex items-center space-x-4">
-          <Link to="/auth/login">
-            <Button variant="ghost" className="text-gray-300 hover:text-white">
-              Login
-            </Button>
-          </Link>
-          <Link to="/auth/signup">
-            <Button className="bg-crypto-purple hover:bg-crypto-dark-purple text-white w-full">
-              Signup
-            </Button>
-          </Link>
+          {isAuthenticated ? (
+            <>
+              <Link to="/dashboard">
+                <Button variant="ghost" className="text-gray-300 hover:text-white">
+                  Dashboard
+                </Button>
+              </Link>
+              <Button 
+                onClick={handleLogout}
+                className="bg-crypto-purple hover:bg-crypto-dark-purple text-white w-full"
+              >
+                Logout
+              </Button>
+            </>
+          ) : (
+            <>
+              <Link to="/auth/login">
+                <Button variant="ghost" className="text-gray-300 hover:text-white">
+                  Login
+                </Button>
+              </Link>
+              <Link to="/auth/signup">
+                <Button className="bg-crypto-purple hover:bg-crypto-dark-purple text-white w-full">
+                  Signup
+                </Button>
+              </Link>
+            </>
+          )}
         </div>
 
         {/* Mobile menu button */}
@@ -167,19 +194,40 @@ const Navbar = () => {
 
               {/* Mobile Auth buttons */}
               <li className="pt-4 flex flex-col space-y-3">
-                <Link to="/auth/login" onClick={() => setIsMobileMenuOpen(false)}>
-                  <Button
-                    variant="ghost"
-                    className="text-gray-300 hover:text-white w-full justify-start"
-                  >
-                    Login
-                  </Button>
-                </Link>
-                <Link to="/auth/signup" onClick={() => setIsMobileMenuOpen(false)}>
-                  <Button className="bg-crypto-purple hover:bg-crypto-dark-purple text-white w-full">
-                    Signup
-                  </Button>
-                </Link>
+                {isAuthenticated ? (
+                  <>
+                    <Link to="/dashboard" onClick={() => setIsMobileMenuOpen(false)}>
+                      <Button
+                        variant="ghost"
+                        className="text-gray-300 hover:text-white w-full justify-start"
+                      >
+                        Dashboard
+                      </Button>
+                    </Link>
+                    <Button 
+                      onClick={handleLogout}
+                      className="bg-crypto-purple hover:bg-crypto-dark-purple text-white w-full"
+                    >
+                      Logout
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <Link to="/auth/login" onClick={() => setIsMobileMenuOpen(false)}>
+                      <Button
+                        variant="ghost"
+                        className="text-gray-300 hover:text-white w-full justify-start"
+                      >
+                        Login
+                      </Button>
+                    </Link>
+                    <Link to="/auth/signup" onClick={() => setIsMobileMenuOpen(false)}>
+                      <Button className="bg-crypto-purple hover:bg-crypto-dark-purple text-white w-full">
+                        Signup
+                      </Button>
+                    </Link>
+                  </>
+                )}
               </li>
             </ul>
           </div>
