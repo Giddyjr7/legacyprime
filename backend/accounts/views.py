@@ -41,7 +41,8 @@ class RegisterView(APIView):
                 # Delete existing pending registration
                 existing_pending.delete()
 
-            # Create pending registration
+            # Create pending registration and store a hashed password
+            # We store the hashed password so the raw password is never persisted.
             pending_registration = PendingRegistration.objects.create(
                 email=email,
                 username=username,
@@ -171,17 +172,22 @@ class VerifyOTPView(APIView):
                 # Find the pending registration
                 pending_registration = PendingRegistration.objects.get(email=email)
 
-                # Create and activate the user
+                # Create and activate the user. Use create() then assign the already-hashed
+                # password directly to avoid double-hashing. This ensures the saved
+                # password is the bcrypt/sha hashed value generated earlier.
                 user = User.objects.create(
                     email=pending_registration.email,
                     username=pending_registration.username,
                     first_name=pending_registration.first_name,
                     last_name=pending_registration.last_name,
-                    password=pending_registration.password,  # Already hashed
                     is_active=True,
                     is_email_verified=True
                 )
-                
+
+                # Assign the hashed password (stored in PendingRegistration) and save
+                user.password = pending_registration.password
+                user.save(update_fields=['password', 'is_active', 'is_email_verified'])
+
                 # Delete the pending registration
                 pending_registration.delete()
                 
