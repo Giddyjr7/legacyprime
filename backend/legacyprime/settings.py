@@ -37,6 +37,12 @@ else:
         ALLOWED_HOSTS.append(vercel_domain)
         ALLOWED_HOSTS.append('legacy-prime.vercel.app')
 
+# Add new domain to allowed hosts
+ALLOWED_HOSTS.extend([
+    'legacy-prime.com',
+    'www.legacy-prime.com'
+])
+
 # Add any extra hosts from environment
 extra_hosts = os.environ.get('DJANGO_ALLOWED_HOSTS', '')
 if extra_hosts:
@@ -160,6 +166,12 @@ else:
     # Add Render backend URL for potential frontend-backend communication
     if RENDER_EXTERNAL_HOSTNAME:
         CORS_ALLOWED_ORIGINS.append(f"https://{RENDER_EXTERNAL_HOSTNAME}")
+
+# ADD YOUR NEW DOMAIN TO CORS ALLOWED ORIGINS
+CORS_ALLOWED_ORIGINS.extend([
+    "https://www.legacy-prime.com",
+    "https://legacy-prime.com",
+])
 
 # Additional CORS settings
 CORS_ALLOW_CREDENTIALS = False

@@ -33,6 +33,18 @@
             signals.py
             urls.py
             utils.py
+        >static
+        >staticfiles
+            >admin
+                >css
+                >img
+                >js
+            >rest_framework 
+                >css
+                >docs
+                >fonts
+                >img
+                >js
         >transactions
             >__pycache__ 
             >migrations
