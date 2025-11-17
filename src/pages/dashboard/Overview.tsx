@@ -33,13 +33,34 @@ ChartJS.register(
 
 export default function Overview() {
     const location = useLocation();
-    const [flash, setFlash] = useState<string | null>(() => (location.state as any)?.flashMessage ?? null);
+    const [flash, setFlash] = useState<string | null>(null);
     const [summary, setSummary] = useState<any>(null);
     const [performance, setPerformance] = useState<any>(null);
     const [transactions, setTransactions] = useState<{ deposits: any[]; withdrawals: any[] }>({ deposits: [], withdrawals: [] });
     const [isLoading, setIsLoading] = useState(true);
+    const [initialFlashMessage, setInitialFlashMessage] = useState<string | null>(() => (location.state as any)?.flashMessage ?? null);
 
     const { isAuthenticated } = useAuth();
+
+    /**
+     * Find the most recent transaction across deposits and withdrawals
+     */
+    const getMostRecentPendingTransaction = (): any | null => {
+        const allTransactions = [
+            ...transactions.deposits.map(d => ({ ...d, type: 'deposit' })),
+            ...transactions.withdrawals.map(w => ({ ...w, type: 'withdrawal' }))
+        ];
+        
+        if (allTransactions.length === 0) return null;
+        
+        // Sort by created_at descending to get most recent
+        const sorted = allTransactions.sort((a, b) => 
+            new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+        );
+        
+        // Return the most recent transaction if it's pending
+        return sorted[0]?.status === 'pending' ? sorted[0] : null;
+    };
 
     // WebSocket notifications disabled — no-op to avoid console noise
 
@@ -61,7 +82,7 @@ export default function Overview() {
         });
     };
 
-    // Load data and handle loading state
+        // Load data and handle loading state
     useEffect(() => {
         // Always start with loading state
         setIsLoading(true);
@@ -97,39 +118,20 @@ export default function Overview() {
         return () => clearTimeout(timer);
     }, [isAuthenticated]); // Only re-run if authentication status changes
 
+    // Update flash message based on most recent transaction status
     useEffect(() => {
-        // Reset loading state and start fresh
-        setIsLoading(true);
-
-        // Timer to ensure we show content after exactly 7 seconds
-        const timer = setTimeout(() => {
-            setIsLoading(false);
-        }, 7000);
-
-        // Only load data if authenticated
-        if (isAuthenticated) {
-            // Load dashboard data
-            Promise.all([
-                api.get(ENDPOINTS.DASHBOARD_SUMMARY),
-                api.get(ENDPOINTS.DASHBOARD_PERFORMANCE),
-                api.get(`${ENDPOINTS.TRANSACTIONS}`)
-            ]).then(([summaryRes, performanceRes, transactionsRes]) => {
-                setSummary(summaryRes.data);
-                setPerformance(performanceRes.data);
-                setTransactions(transactionsRes.data);
-            }).catch(err => {
-                console.error('Failed loading dashboard data', err);
-            });
+        const mostRecentPending = getMostRecentPendingTransaction();
+        
+        // Only show flash message if:
+        // 1. We have an initial flash message from navigation
+        // 2. There's actually a pending transaction
+        // Otherwise, clear it
+        if (initialFlashMessage && mostRecentPending) {
+            setFlash(initialFlashMessage);
         } else {
-            // Clear data if not authenticated
-            setSummary(null);
-            setPerformance(null);
-            setTransactions({ deposits: [], withdrawals: [] });
+            setFlash(null);
         }
-
-        // Cleanup timer on unmount
-        return () => clearTimeout(timer);
-    }, [isAuthenticated]);
+    }, [transactions, initialFlashMessage]);
 
     if (isLoading) {
         return <DashboardLoading message="Loading dashboard information..." />;

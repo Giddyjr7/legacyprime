@@ -3,8 +3,8 @@ from rest_framework.response import Response
 from rest_framework import status, permissions
 from django.views.decorators.csrf import ensure_csrf_cookie
 from django.utils.decorators import method_decorator
-from .serializers import WithdrawalAccountSerializer
-from .models import WithdrawalAccount
+from .serializers import WithdrawalAccountSerializer, SystemSettingsSerializer
+from .models import WithdrawalAccount, SystemSettings
 from transactions.models import Deposit, Withdrawal
 from transactions.serializers import DepositSerializer, WithdrawalSerializer
 from rest_framework.parsers import MultiPartParser, FormParser
@@ -142,3 +142,17 @@ class WithdrawalAccountDetailView(APIView):
             serializer.save()
             return Response(serializer.data)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+class SystemSettingsView(APIView):
+    """
+    Public API endpoint to retrieve system settings.
+    This view is accessible without authentication to allow the frontend
+    to fetch the wallet address.
+    """
+    permission_classes = (permissions.AllowAny,)
+
+    def get(self, request):
+        settings = SystemSettings.get_instance()
+        serializer = SystemSettingsSerializer(settings)
+        return Response(serializer.data)

@@ -40,6 +40,7 @@ export const ENDPOINTS = {
   WALLET_DEPOSIT_CONFIRM: (id: number) => `${API_BASE_URL}/wallet/deposit/${id}/confirm/`,
   WALLET_WITHDRAW: `${API_BASE_URL}/wallet/withdraw/`,
   WALLET_WITHDRAWAL_ACCOUNTS: `${API_BASE_URL}/wallet/withdrawal-accounts/`,
+  WALLET_SETTINGS: `${API_BASE_URL}/wallet/settings/`,
   
   // Transaction endpoints
   TRANSACTIONS: `${API_BASE_URL}/transactions/`,

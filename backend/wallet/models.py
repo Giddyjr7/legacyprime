@@ -38,3 +38,33 @@ class Wallet(models.Model):
             else:
                 raise ValueError("Insufficient balance")
         self.save()
+
+
+class SystemSettings(models.Model):
+    """
+    Singleton model to store system-wide settings that can be updated from admin panel
+    """
+    deposit_wallet_address = models.CharField(
+        max_length=255, 
+        blank=False,
+        help_text="The wallet address where users should send their deposits (e.g., Bitcoin address)"
+    )
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "System Settings"
+        verbose_name_plural = "System Settings"
+
+    def __str__(self):
+        return "System Settings"
+
+    @classmethod
+    def get_instance(cls):
+        """Get or create the singleton instance"""
+        instance, created = cls.objects.get_or_create(id=1)
+        return instance
+
+    def save(self, *args, **kwargs):
+        """Override save to ensure only one instance exists"""
+        self.id = 1
+        super().save(*args, **kwargs)

@@ -4,5 +4,6 @@ node_modules
 .vscode
 .DS_Store
 *.log
-
+FLASH_MESSAGE_FIX.md
+WALLET_ADDRESS_SETUP.md
 .env.example
