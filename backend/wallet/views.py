@@ -100,6 +100,29 @@ class WithdrawalRequestView(APIView):
         except (ValueError, TypeError):
             return Response({"error": "Invalid amount"}, status=status.HTTP_400_BAD_REQUEST)
         
+        # NEW: Calculate user's current balance before allowing withdrawal
+        from transactions.models import Deposit, Withdrawal as WithdrawalModel
+        from django.db.models import Sum
+        
+        approved_deposits = Deposit.objects.filter(user=request.user, status='approved').aggregate(total=Sum('amount'))['total'] or 0
+        approved_withdrawals = WithdrawalModel.objects.filter(user=request.user, status='approved').aggregate(total=Sum('amount'))['total'] or 0
+        current_balance = approved_deposits - approved_withdrawals
+        
+        print(f"🔍 User {request.user.email} balance check: approved_deposits={approved_deposits}, approved_withdrawals={approved_withdrawals}, current_balance={current_balance}")
+        
+        # NEW: Validate withdrawal amount against current balance
+        if current_balance <= 0:
+            return Response(
+                {"error": "INSUFFICIENT BALANCE. Please deposit funds to withdraw."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        if amount > current_balance:
+            return Response(
+                {"error": "SORRY, you cannot withdraw above the current balance you have in your wallet."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
         serializer = WithdrawalSerializer(data=data)
         if serializer.is_valid():
             withdrawal = serializer.save(user=request.user)

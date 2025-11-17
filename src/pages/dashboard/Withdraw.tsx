@@ -11,9 +11,31 @@ export default function Withdraw() {
   const [amount, setAmount] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [walletAddress, setWalletAddress] = useState("");
+  const [availableBalance, setAvailableBalance] = useState<number>(0);
+  const [balanceLoading, setBalanceLoading] = useState(true);
   const navigate = useNavigate();
   const { user, isAuthenticated, token } = useAuth();
   const { toast } = useToast();
+
+  // Fetch user's current balance on component mount
+  useEffect(() => {
+    const fetchBalance = async () => {
+      try {
+        setBalanceLoading(true);
+        const response = await api.get(ENDPOINTS.DASHBOARD_SUMMARY);
+        setAvailableBalance(response.data.total_balance || 0);
+      } catch (error) {
+        console.error('Failed to fetch balance:', error);
+        setAvailableBalance(0);
+      } finally {
+        setBalanceLoading(false);
+      }
+    };
+
+    if (isAuthenticated) {
+      fetchBalance();
+    }
+  }, [isAuthenticated]);
 
   // Check authentication on component mount
   useEffect(() => {
@@ -67,18 +89,41 @@ export default function Withdraw() {
       return;
     }
 
+    // NEW: Balance validation
+    const requestedAmount = parseFloat(amount);
+    
+    // Check if balance is zero
+    if (availableBalance <= 0) {
+      toast({
+        title: 'Insufficient Balance',
+        description: 'INSUFFICIENT BALANCE. Please deposit funds to withdraw.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    // Check if withdrawal amount exceeds available balance
+    if (requestedAmount > availableBalance) {
+      toast({
+        title: 'Insufficient Balance',
+        description: 'SORRY, you cannot withdraw above the current balance you have in your wallet.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     setIsLoading(true);
 
     try {
       console.log('Making withdrawal request with:', {
-        amount: parseFloat(amount),
+        amount: requestedAmount,
         method: selectedMethod,
         walletAddress
       });
 
       // Use the api instance which should already have JWT token configured
       const response = await api.post(ENDPOINTS.WALLET_WITHDRAW, {
-        amount: parseFloat(amount),
+        amount: requestedAmount,
         method: selectedMethod,
         withdrawal_address: walletAddress,
       });
@@ -107,11 +152,6 @@ export default function Withdraw() {
         // Handle specific error messages from backend
         const errorData = error.response.data;
         errorMessage = errorData.detail || errorData.error || errorData.message || errorMessage;
-        
-        // Handle insufficient funds
-        if (errorMessage.toLowerCase().includes('insufficient') || errorMessage.toLowerCase().includes('balance')) {
-          errorMessage = 'Insufficient funds for this withdrawal';
-        }
       } else if (error?.message) {
         errorMessage = error.message;
       }
@@ -212,6 +252,12 @@ export default function Withdraw() {
           {/* Details */}
           <div className="space-y-2 text-sm text-muted-foreground">
             <div className="flex justify-between">
+              <span>Available Balance</span>
+              <span className={availableBalance <= 0 ? 'text-red-500 font-semibold' : 'text-green-500 font-semibold'}>
+                ${balanceLoading ? '—' : availableBalance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD
+              </span>
+            </div>
+            <div className="flex justify-between">
               <span>Limit</span>
               <span>$5.00 USD - $1,000,000.00 USD</span>
             </div>
@@ -241,9 +287,9 @@ export default function Withdraw() {
           {/* Confirm Button */}
           <button
             onClick={handleWithdraw}
-            disabled={!selectedMethod || !amount || !walletAddress || isLoading || parseFloat(amount) < 5}
+            disabled={!selectedMethod || !amount || !walletAddress || isLoading || parseFloat(amount) < 5 || availableBalance <= 0 || parseFloat(amount) > availableBalance || balanceLoading}
             className={`w-full rounded-lg px-4 py-2 font-medium text-primary-foreground ${
-              !selectedMethod || !amount || !walletAddress || isLoading || parseFloat(amount) < 5
+              !selectedMethod || !amount || !walletAddress || isLoading || parseFloat(amount) < 5 || availableBalance <= 0 || parseFloat(amount) > availableBalance || balanceLoading
                 ? 'bg-muted cursor-not-allowed opacity-60'
                 : 'bg-primary hover:opacity-90'
             }`}
