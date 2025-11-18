@@ -30,7 +30,6 @@ const Login = () => {
     setServerErrors({});
 
     try {
-      console.log('Login payload:', { email, password });
       await login(email, password);
 
       toast({

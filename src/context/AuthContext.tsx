@@ -49,10 +49,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
     // ADD THIS FUNCTION - Updates tokens without logging out
     const updateTokens = (access: string, refresh: string) => {
-        console.log('🔍 DEBUG - Updating tokens in AuthContext');
         setTokens(access, refresh);
         setToken(access);
-        console.log('🔍 DEBUG - Tokens updated successfully');
     };
 
     const checkAuth = async () => {
@@ -66,19 +64,16 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         }
 
         try {
-            console.log('Checking JWT authentication...');
             const response = await api.get(ENDPOINTS.PROFILE);
             const userData = response.data;
             
             if (userData && userData.id) {
                 setUser(userData);
-                console.log('User authenticated via JWT:', userData.email);
             } else {
                 setUser(null);
                 setToken(null);
             }
         } catch (error) {
-            console.log('JWT auth check error:', error);
             clearTokens();
             setUser(null);
             setToken(null);
@@ -93,12 +88,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
     const login = async (email: string, password: string) => {
         try {
-            console.log('Making JWT login request...');
-            
             const response = await api.post(ENDPOINTS.LOGIN, { email, password });
-            
-            console.log('JWT login response received:', response);
-            console.log('Response data:', response.data);
             
             const { access, refresh } = response.data;
             
@@ -106,13 +96,11 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                 setTokens(access, refresh);
                 setToken(access);
                 
-                console.log('Fetching user profile with new token...');
                 const userResponse = await api.get(ENDPOINTS.PROFILE);
                 const userData = userResponse.data;
                 
                 if (userData && userData.id) {
                     setUser(userData);
-                    console.log('JWT login successful, user data set:', userData.email);
                     
                     toast({
                         title: "Success",
@@ -145,11 +133,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
     const register = async (userData: RegisterData): Promise<RegistrationResponse> => {
         try {
-            console.log('Sending JWT registration request:', userData);
-            
             const response = await api.post<RegistrationResponse>(ENDPOINTS.REGISTER, userData);
-            
-            console.log('JWT Registration response:', response);
             
             if (response.status >= 200 && response.status < 300) {
                 toast({
@@ -198,8 +182,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             clearTokens();
             setUser(null);
             setToken(null);
-            
-            console.log('JWT logout successful');
             
             toast({
                 title: "Success",

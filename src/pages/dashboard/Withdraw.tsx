@@ -115,20 +115,12 @@ export default function Withdraw() {
     setIsLoading(true);
 
     try {
-      console.log('Making withdrawal request with:', {
-        amount: requestedAmount,
-        method: selectedMethod,
-        walletAddress
-      });
-
       // Use the api instance which should already have JWT token configured
       const response = await api.post(ENDPOINTS.WALLET_WITHDRAW, {
         amount: requestedAmount,
         method: selectedMethod,
         withdrawal_address: walletAddress,
       });
-
-      console.log('Withdrawal response:', response);
 
       // Reasonable loading time instead of fixed 10 seconds
       await new Promise(resolve => setTimeout(resolve, 2000));
