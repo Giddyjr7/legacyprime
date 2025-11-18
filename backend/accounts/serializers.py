@@ -15,9 +15,9 @@ class UserProfileSerializer(serializers.ModelSerializer):
         fields = (
             'id', 'email', 'username', 'first_name', 'last_name', 
             'address', 'state', 'zip_code', 'city', 'country', 
-            'mobile', 'profile_picture', 'profile_picture_url'
+            'mobile', 'profile_picture', 'profile_picture_url', 'date_joined'
         )
-        read_only_fields = ('id', 'email', 'username', 'profile_picture_url')
+        read_only_fields = ('id', 'email', 'username', 'profile_picture_url', 'date_joined')
         extra_kwargs = {
             'profile_picture': {'write_only': True, 'required': False}
         }

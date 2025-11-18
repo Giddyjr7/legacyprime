@@ -311,7 +311,15 @@ export default function Settings() {
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-sm font-medium">Member Since</span>
-                <span className="text-sm text-muted-foreground">Recently</span>
+                <span className="text-sm text-muted-foreground">
+                  {user?.date_joined 
+                    ? new Date(user.date_joined).toLocaleDateString('en-US', {
+                        year: 'numeric',
+                        month: 'long',
+                        day: 'numeric'
+                      })
+                    : 'Loading...'}
+                </span>
               </div>
             </div>
           </div>
