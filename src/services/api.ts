@@ -20,13 +20,25 @@ export class APIError extends Error {
 }
 
 // Get the base URL based on environment
-const getApiBaseUrl = (): string => {
-  if (import.meta.env.VITE_API_BASE_URL) {
-    return import.meta.env.VITE_API_BASE_URL;
+const ensureProtocol = (maybeUrl?: string) => {
+  if (!maybeUrl) return maybeUrl || '';
+  if (/^[a-zA-Z][a-zA-Z\d+\-.]*:/.test(maybeUrl)) return maybeUrl;
+  if (maybeUrl.startsWith('//')) return window.location.protocol + maybeUrl;
+  if (maybeUrl.includes('localhost') || maybeUrl.includes('127.0.0.1')) {
+    return `http://${maybeUrl}`;
   }
-  return import.meta.env.PROD 
-    ? 'https://legacyprime.onrender.com/api'
-    : 'http://localhost:8000/api';
+  return `https://${maybeUrl}`;
+};
+
+const getApiBaseUrl = (): string => {
+  let base = '';
+  if (import.meta.env.VITE_API_BASE_URL) {
+    base = import.meta.env.VITE_API_BASE_URL;
+  } else {
+    base = import.meta.env.PROD ? 'https://legacyprime.onrender.com/api' : 'http://localhost:8000/api';
+  }
+
+  return ensureProtocol(base);
 };
 
 export const API_BASE_URL = getApiBaseUrl();

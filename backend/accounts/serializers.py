@@ -97,7 +97,7 @@ class LoginSerializer(serializers.Serializer):
         # give a clearer validation message when the email is unknown.
         if not User.objects.filter(email__iexact=email).exists():
             raise serializers.ValidationError({
-                'email': ['No account found with that email.']
+                'email': ['This user does not exist.']
             })
 
         # Attempt authentication. If it fails, the password was incorrect (or

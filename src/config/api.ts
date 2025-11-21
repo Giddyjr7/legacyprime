@@ -1,18 +1,26 @@
 // Determine the API base URL based on the environment
-const getApiBaseUrl = () => {
-  // First check for explicit API URL in environment variables
-  if (import.meta.env.VITE_API_BASE_URL) {
-    return import.meta.env.VITE_API_BASE_URL;
+const ensureProtocol = (maybeUrl?: string) => {
+  if (!maybeUrl) return maybeUrl || '';
+  if (/^[a-zA-Z][a-zA-Z\d+\-.]*:/.test(maybeUrl)) return maybeUrl;
+  if (maybeUrl.startsWith('//')) return window.location.protocol + maybeUrl;
+  if (maybeUrl.includes('localhost') || maybeUrl.includes('127.0.0.1')) {
+    return `http://${maybeUrl}`;
   }
-  
-  // Fallback to environment-based logic
+  return `https://${maybeUrl}`;
+};
+
+const getApiBaseUrl = () => {
+  if (import.meta.env.VITE_API_BASE_URL) {
+    return ensureProtocol(import.meta.env.VITE_API_BASE_URL);
+  }
+
   if (import.meta.env.PROD) {
     // Use the deployed backend URL in production
-    return 'https://legacyprime.onrender.com/api';
+    return ensureProtocol('https://legacyprime.onrender.com/api');
   }
-  
+
   // Use localhost in development
-  return 'http://localhost:8000/api';
+  return ensureProtocol('http://localhost:8000/api');
 };
 
 export const API_BASE_URL = getApiBaseUrl();

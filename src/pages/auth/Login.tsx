@@ -38,33 +38,63 @@ const Login = () => {
       });
       navigate("/dashboard");
     } catch (error) {
-      if (error instanceof APIError && error.status === 400 && error.data) {
-        const data = error.data as any;
-        const nextErrors: any = {};
+      // Generic helper to extract message(s) from backend response
+      const extractMessages = (data: any) => {
+        const out: any = {};
+        if (!data) return out;
+
+        // If backend returned a simple string or detail field
+        if (typeof data === 'string') {
+          out.non_field_errors = data;
+          return out;
+        }
+
+        if (data.detail) {
+          out.non_field_errors = data.detail;
+          return out;
+        }
+
+        if (data.message) {
+          out.non_field_errors = data.message;
+          return out;
+        }
+
+        // Otherwise, try to flatten object fields
         for (const key of Object.keys(data)) {
           const val = data[key];
-          if (Array.isArray(val)) {
-            nextErrors[key] = val.join(" ");
-          } else if (typeof val === 'string') {
-            nextErrors[key] = val;
-          } else {
-            nextErrors[key] = JSON.stringify(val);
-          }
+          if (Array.isArray(val)) out[key] = val.join(' ');
+          else if (typeof val === 'string') out[key] = val;
+          else out[key] = JSON.stringify(val);
         }
+        return out;
+      };
+
+      if (error instanceof APIError) {
+        const data = (error as any).data;
+        const nextErrors = extractMessages(data);
         setServerErrors(nextErrors);
+
+        const errorDescription = nextErrors.email || nextErrors.password || nextErrors.non_field_errors || error.message || 'Please check your input and try again.';
+
         toast({
-          variant: "destructive",
-          title: "Login failed",
-          description: nextErrors.non_field_errors || nextErrors.detail || "Please check your input and try again",
+          variant: 'destructive',
+          title: 'Login failed',
+          description: errorDescription,
+        });
+      } else if (error instanceof Error) {
+        // Non-API error (network, unexpected)
+        toast({
+          variant: 'destructive',
+          title: 'Error',
+          description: error.message || 'Login failed',
         });
       } else {
         toast({
-          variant: "destructive",
-          title: "Error",
-          description: error instanceof Error ? error.message : "Login failed",
+          variant: 'destructive',
+          title: 'Error',
+          description: 'An unknown error occurred. Please try again.',
         });
       }
-      throw error;
     } finally {
       setLoading(false);
     }
@@ -102,43 +132,50 @@ const Login = () => {
         </CardHeader>
         <CardContent className="space-y-6 py-6 px-4">
           <form onSubmit={handleLogin} className="space-y-5">
-            <Input
-              type="email"
-              placeholder="Email"
-              value={email}
-              onChange={(e) => {
-                setEmail(e.target.value);
-                if (serverErrors.email) setServerErrors((s) => ({ ...s, email: null }));
-              }}
-              className="bg-input text-foreground border border-border"
-              required
-            />
-            {serverErrors.email && (
-              <p className="text-sm text-destructive">{serverErrors.email}</p>
-            )}
-            <div className="relative">
+            <div>
               <Input
-                type={showPassword ? "text" : "password"}
-                placeholder="Password"
-                value={password}
+                type="email"
+                placeholder="Email"
+                value={email}
                 onChange={(e) => {
-                  setPassword(e.target.value);
-                  if (serverErrors.password) setServerErrors((s) => ({ ...s, password: null }));
+                  setEmail(e.target.value);
+                  // Clear email error when user starts typing
+                  if (serverErrors.email) setServerErrors((s) => ({ ...s, email: null }));
                 }}
                 className="bg-input text-foreground border border-border"
                 required
               />
+              {serverErrors.email && (
+                <p className="text-sm text-destructive mt-2">{serverErrors.email}</p>
+              )}
+            </div>
+            
+            <div>
+              <div className="relative">
+                <Input
+                  type={showPassword ? "text" : "password"}
+                  placeholder="Password"
+                  value={password}
+                  onChange={(e) => {
+                    setPassword(e.target.value);
+                    // Clear password error when user starts typing
+                    if (serverErrors.password) setServerErrors((s) => ({ ...s, password: null }));
+                  }}
+                  className="bg-input text-foreground border border-border"
+                  required
+                />
+                <button
+                  type="button"
+                  aria-label={showPassword ? "Hide password" : "Show password"}
+                  onClick={() => setShowPassword((s) => !s)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                >
+                  {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                </button>
+              </div>
               {serverErrors.password && (
                 <p className="text-sm text-destructive mt-2">{serverErrors.password}</p>
               )}
-              <button
-                type="button"
-                aria-label={showPassword ? "Hide password" : "Show password"}
-                onClick={() => setShowPassword((s) => !s)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-              >
-                {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-              </button>
             </div>
 
             <div className="text-right">

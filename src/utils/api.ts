@@ -13,14 +13,34 @@ export class APIError extends Error {
     }
 }
 
+const ensureProtocol = (maybeUrl?: string) => {
+    if (!maybeUrl) return maybeUrl;
+
+    // If it already has a protocol (http:, https:, etc.) leave it
+    if (/^[a-zA-Z][a-zA-Z\d+\-.]*:/.test(maybeUrl)) return maybeUrl;
+
+    // Protocol-relative URL (//example.com)
+    if (maybeUrl.startsWith('//')) return window.location.protocol + maybeUrl;
+
+    // Add https by default, except for localhost where http is expected
+    if (maybeUrl.includes('localhost') || maybeUrl.includes('127.0.0.1')) {
+        return `http://${maybeUrl}`;
+    }
+
+    return `https://${maybeUrl}`;
+};
+
 const getApiBaseUrl = () => {
+    let base = '';
     if (import.meta.env.VITE_API_BASE_URL) {
-        return import.meta.env.VITE_API_BASE_URL;
+        base = import.meta.env.VITE_API_BASE_URL;
+    } else if (import.meta.env.PROD) {
+        base = 'https://legacyprime.onrender.com/api';
+    } else {
+        base = 'http://localhost:8000/api';
     }
-    if (import.meta.env.PROD) {
-        return 'https://legacyprime.onrender.com/api';
-    }
-    return 'http://localhost:8000/api';
+
+    return ensureProtocol(base);
 };
 
 export const API_BASE_URL = getApiBaseUrl();
