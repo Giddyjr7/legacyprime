@@ -38,22 +38,19 @@ export default function DashboardLayout() {
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  // Close dropdown on outside click
+  // Close dropdown on outside click - attach listener once, check state inside
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
         setDropdownOpen(false);
       }
     }
-    if (dropdownOpen) {
-      document.addEventListener("mousedown", handleClickOutside);
-    } else {
-      document.removeEventListener("mousedown", handleClickOutside);
-    }
+
+    document.addEventListener("mousedown", handleClickOutside);
     return () => {
       document.removeEventListener("mousedown", handleClickOutside);
     };
-  }, [dropdownOpen]);
+  }, []);
 
   const menuItems = [
     { name: "Overview", icon: <LayoutDashboard size={18} />, path: "/dashboard" },
@@ -87,7 +84,7 @@ export default function DashboardLayout() {
             const isActive = location.pathname === item.path;
             return (
               <Link
-                key={item.name}
+                key={item.path}
                 to={item.path}
                 className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
                   isActive ? "bg-muted text-foreground" : "hover:bg-muted"
@@ -136,40 +133,45 @@ export default function DashboardLayout() {
             >
               <ChevronDown size={18} className="text-muted-foreground" />
             </button>
-            {dropdownOpen && (
-              <div className="absolute right-0 top-12 z-50 w-44 rounded-lg border border-border bg-card shadow-lg py-2 animate-fade-in">
-                <button
-                  className="block w-full text-left px-4 py-2 text-sm hover:bg-muted transition-colors"
-                  onClick={() => {
-                    setDropdownOpen(false);
-                    navigate('/dashboard/profile');
-                  }}
-                >
-                  Profile
-                </button>
-                <Link
-                  to="/dashboard/settings"
-                  className="block px-4 py-2 text-sm hover:bg-muted transition-colors"
-                  onClick={() => setDropdownOpen(false)}
-                >
-                  Change Password
-                </Link>
-                <button
-                  className="block w-full text-left px-4 py-2 text-sm hover:bg-muted transition-colors text-destructive"
-                  onClick={async () => {
-                    setDropdownOpen(false);
-                    try {
-                      await logout();
-                      navigate('/');
-                    } catch (error) {
-                      console.error('Logout failed:', error);
-                    }
-                  }}
-                >
-                  Logout
-                </button>
-              </div>
-            )}
+            {/* Render dropdown container always to keep DOM stable; toggle visibility via classes */}
+            <div
+              ref={dropdownRef}
+              aria-hidden={!dropdownOpen}
+              className={`absolute right-0 top-12 z-50 w-44 rounded-lg border border-border bg-card shadow-lg py-2 transform transition-all ${
+                dropdownOpen ? 'opacity-100 scale-100 pointer-events-auto' : 'opacity-0 scale-95 pointer-events-none'
+              }`}
+            >
+              <button
+                className="block w-full text-left px-4 py-2 text-sm hover:bg-muted transition-colors"
+                onClick={() => {
+                  setDropdownOpen(false);
+                  navigate('/dashboard/profile');
+                }}
+              >
+                Profile
+              </button>
+              <Link
+                to="/dashboard/settings"
+                className="block px-4 py-2 text-sm hover:bg-muted transition-colors"
+                onClick={() => setDropdownOpen(false)}
+              >
+                Change Password
+              </Link>
+              <button
+                className="block w-full text-left px-4 py-2 text-sm hover:bg-muted transition-colors text-destructive"
+                onClick={async () => {
+                  setDropdownOpen(false);
+                  try {
+                    await logout();
+                    navigate('/');
+                  } catch (error) {
+                    console.error('Logout failed:', error);
+                  }
+                }}
+              >
+                Logout
+              </button>
+            </div>
           </div>
         </header>
 

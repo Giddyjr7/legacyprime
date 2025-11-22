@@ -43,3 +43,14 @@ class SystemSettingsAdmin(admin.ModelAdmin):
         if obj:
             return redirect(reverse('admin:wallet_systemsettings_change', args=(obj.id,)))
         return super().changelist_view(request, extra_context=extra_context)
+
+
+from .models import WalletAddress
+
+
+@admin.register(WalletAddress)
+class WalletAddressAdmin(admin.ModelAdmin):
+    list_display = ('method_name', 'wallet_address', 'updated_at')
+    search_fields = ('method_name', 'wallet_address')
+    readonly_fields = ('created_at', 'updated_at')
+    fields = ('method_name', 'wallet_address', 'created_at', 'updated_at')

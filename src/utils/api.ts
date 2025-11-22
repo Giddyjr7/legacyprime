@@ -1,4 +1,5 @@
 import axios, { AxiosInstance } from 'axios';
+import { joinUrl } from '@/lib/url';
 
 export class APIError extends Error {
     public status: number;
@@ -32,7 +33,7 @@ const ensureProtocol = (maybeUrl?: string) => {
 
 const getApiBaseUrl = () => {
     let base = '';
-    if (import.meta.env.VITE_API_BASE_URL) {
+    if (import.meta.env.VITE_API_BASE_URL && import.meta.env.VITE_API_BASE_URL.trim() !== '') {
         base = import.meta.env.VITE_API_BASE_URL;
     } else if (import.meta.env.PROD) {
         base = 'https://legacyprime.onrender.com/api';
@@ -47,38 +48,38 @@ export const API_BASE_URL = getApiBaseUrl();
 
 export const ENDPOINTS = {
     // JWT Authentication endpoints
-    LOGIN: `${API_BASE_URL}/accounts/token/`,
-    REFRESH_TOKEN: `${API_BASE_URL}/accounts/token/refresh/`,
-    
+    LOGIN: joinUrl(API_BASE_URL, 'accounts/token/'),
+    REFRESH_TOKEN: joinUrl(API_BASE_URL, 'accounts/token/refresh/'),
+
     // User endpoints
-    REGISTER: `${API_BASE_URL}/accounts/register/`,
-    PROFILE: `${API_BASE_URL}/accounts/profile/`,
-    VERIFY_OTP: `${API_BASE_URL}/accounts/verify-otp/`,
-    RESEND_OTP: `${API_BASE_URL}/accounts/resend-otp/`,
-    CHANGE_PASSWORD: `${API_BASE_URL}/accounts/change-password/`,
-    
+    REGISTER: joinUrl(API_BASE_URL, 'accounts/register/'),
+    PROFILE: joinUrl(API_BASE_URL, 'accounts/profile/'),
+    VERIFY_OTP: joinUrl(API_BASE_URL, 'accounts/verify-otp/'),
+    RESEND_OTP: joinUrl(API_BASE_URL, 'accounts/resend-otp/'),
+    CHANGE_PASSWORD: joinUrl(API_BASE_URL, 'accounts/change-password/'),
+
     // Password reset endpoints
-    REQUEST_PASSWORD_RESET: `${API_BASE_URL}/accounts/request-password-reset/`,
-    VERIFY_PASSWORD_RESET_OTP: `${API_BASE_URL}/accounts/verify-password-reset-otp/`,
-    SET_NEW_PASSWORD: `${API_BASE_URL}/accounts/set-new-password/`,
-    
+    REQUEST_PASSWORD_RESET: joinUrl(API_BASE_URL, 'accounts/request-password-reset/'),
+    VERIFY_PASSWORD_RESET_OTP: joinUrl(API_BASE_URL, 'accounts/verify-password-reset-otp/'),
+    SET_NEW_PASSWORD: joinUrl(API_BASE_URL, 'accounts/set-new-password/'),
+
     // Dashboard endpoints
-    DASHBOARD_SUMMARY: `${API_BASE_URL}/transactions/dashboard/summary/`,
-    DASHBOARD_PERFORMANCE: `${API_BASE_URL}/transactions/dashboard/performance/`,
-    
+    DASHBOARD_SUMMARY: joinUrl(API_BASE_URL, 'transactions/dashboard/summary/'),
+    DASHBOARD_PERFORMANCE: joinUrl(API_BASE_URL, 'transactions/dashboard/performance/'),
+
     // Wallet endpoints
-    WALLET_DEPOSIT_REQUEST: `${API_BASE_URL}/wallet/deposit/request/`,
-    WALLET_DEPOSIT_CONFIRM: (id: number) => `${API_BASE_URL}/wallet/deposit/${id}/confirm/`,
-    WALLET_WITHDRAW: `${API_BASE_URL}/wallet/withdraw/`,
-    WALLET_WITHDRAWAL_ACCOUNTS: `${API_BASE_URL}/wallet/withdrawal-accounts/`,
-    
+    WALLET_DEPOSIT_REQUEST: joinUrl(API_BASE_URL, 'wallet/deposit/request/'),
+    WALLET_DEPOSIT_CONFIRM: (id: number) => joinUrl(API_BASE_URL, `wallet/deposit/${id}/confirm/`),
+    WALLET_WITHDRAW: joinUrl(API_BASE_URL, 'wallet/withdraw/'),
+    WALLET_WITHDRAWAL_ACCOUNTS: joinUrl(API_BASE_URL, 'wallet/withdrawal-accounts/'),
+
     // Transaction endpoints
-    TRANSACTIONS: `${API_BASE_URL}/transactions/`,
-    CREATE_TRANSACTION: `${API_BASE_URL}/transactions/create/`,
-    
+    TRANSACTIONS: joinUrl(API_BASE_URL, 'transactions/'),
+    CREATE_TRANSACTION: joinUrl(API_BASE_URL, 'transactions/create/'),
+
     // Notification endpoints
-    NOTIFICATIONS: `${API_BASE_URL}/notifications/`,
-    MARK_NOTIFICATION_READ: (id: string) => `${API_BASE_URL}/notifications/${id}/mark-read/`,
+    NOTIFICATIONS: joinUrl(API_BASE_URL, 'notifications/'),
+    MARK_NOTIFICATION_READ: (id: string) => joinUrl(API_BASE_URL, `notifications/${id}/mark-read/`),
 };
 
 // JWT Token management

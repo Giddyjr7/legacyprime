@@ -68,3 +68,20 @@ class SystemSettings(models.Model):
         """Override save to ensure only one instance exists"""
         self.id = 1
         super().save(*args, **kwargs)
+
+
+class WalletAddress(models.Model):
+    """
+    Stores wallet addresses per deposit method (e.g., Bitcoin, USDT-TRC20)
+    """
+    method_name = models.CharField(max_length=100, unique=True)
+    wallet_address = models.CharField(max_length=255)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Wallet Address"
+        verbose_name_plural = "Wallet Addresses"
+
+    def __str__(self):
+        return f"{self.method_name} -> {self.wallet_address}"

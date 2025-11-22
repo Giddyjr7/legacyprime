@@ -29,8 +29,18 @@ const ConfirmDeposit = () => {
     const fetchWalletAddress = async () => {
       try {
         setIsFetching(true);
-        const response = await api.get(ENDPOINTS.WALLET_SETTINGS);
-        setWalletAddress(response.data.deposit_wallet_address);
+        const method = (location.state || {}).method || '';
+        if (!method) {
+          toast({
+            title: 'Error',
+            description: 'No payment method specified.',
+            variant: 'destructive',
+          });
+          return;
+        }
+        // Fetch wallet address specific to the selected method
+        const response = await api.get(ENDPOINTS.WALLET_ADDRESS_BY_METHOD(method));
+        setWalletAddress(response.data.wallet_address);
       } catch (err) {
         console.error('Failed to fetch wallet address:', err);
         toast({
@@ -44,7 +54,7 @@ const ConfirmDeposit = () => {
     };
 
     fetchWalletAddress();
-  }, [toast]);
+  }, [location.state, toast]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) setFile(e.target.files[0]);

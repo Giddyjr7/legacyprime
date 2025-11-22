@@ -4,7 +4,8 @@ from rest_framework import status, permissions
 from django.views.decorators.csrf import ensure_csrf_cookie
 from django.utils.decorators import method_decorator
 from .serializers import WithdrawalAccountSerializer, SystemSettingsSerializer
-from .models import WithdrawalAccount, SystemSettings
+from .serializers import WalletAddressSerializer
+from .models import WithdrawalAccount, SystemSettings, WalletAddress
 from transactions.models import Deposit, Withdrawal
 from transactions.serializers import DepositSerializer, WithdrawalSerializer
 from rest_framework.parsers import MultiPartParser, FormParser
@@ -178,4 +179,26 @@ class SystemSettingsView(APIView):
     def get(self, request):
         settings = SystemSettings.get_instance()
         serializer = SystemSettingsSerializer(settings)
+        return Response(serializer.data)
+
+
+class WalletAddressView(APIView):
+    """Endpoint to return wallet address for a specific deposit method.
+
+    Query params: ?method=USDT-TRC20
+    """
+    permission_classes = (permissions.AllowAny,)
+
+    def get(self, request):
+        method = request.query_params.get('method')
+        if not method:
+            return Response({"error": "method query parameter is required"}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Try case-insensitive match
+        try:
+            wa = WalletAddress.objects.get(method_name__iexact=method)
+        except WalletAddress.DoesNotExist:
+            return Response({"error": "Wallet address not found for the provided method"}, status=status.HTTP_404_NOT_FOUND)
+
+        serializer = WalletAddressSerializer(wa)
         return Response(serializer.data)

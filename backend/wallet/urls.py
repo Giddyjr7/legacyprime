@@ -6,6 +6,7 @@ from .views import (
     ConfirmDepositView,
     WithdrawalRequestView,
     SystemSettingsView,
+    WalletAddressView,
 )
 
 urlpatterns = [
@@ -15,6 +16,8 @@ urlpatterns = [
     path('deposit/request/', DepositRequestView.as_view(), name='deposit_request'),
     path('deposit/<int:pk>/confirm/', ConfirmDepositView.as_view(), name='deposit_confirm'),
     path('withdraw/', WithdrawalRequestView.as_view(), name='withdraw_request'),
+    # Wallet address lookup per deposit method
+    path('address/', WalletAddressView.as_view(), name='wallet_address'),
     # System settings endpoint
     path('settings/', SystemSettingsView.as_view(), name='system_settings'),
 ]

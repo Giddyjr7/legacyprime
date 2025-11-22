@@ -5,6 +5,7 @@ import axios, {
   InternalAxiosRequestConfig 
 } from 'axios';
 import { ENDPOINTS } from '@/config/api';
+import { joinUrl } from '@/lib/url';
 
 // Custom error class for API errors
 export class APIError extends Error {
@@ -32,7 +33,7 @@ const ensureProtocol = (maybeUrl?: string) => {
 
 const getApiBaseUrl = (): string => {
   let base = '';
-  if (import.meta.env.VITE_API_BASE_URL) {
+  if (import.meta.env.VITE_API_BASE_URL && import.meta.env.VITE_API_BASE_URL.trim() !== '') {
     base = import.meta.env.VITE_API_BASE_URL;
   } else {
     base = import.meta.env.PROD ? 'https://legacyprime.onrender.com/api' : 'http://localhost:8000/api';
@@ -167,7 +168,7 @@ api.interceptors.response.use(
       if (refreshToken && !config.isRetryingAuth) {
         config.isRetryingAuth = true;
         try {
-          const response = await axios.post(`${API_BASE_URL}/accounts/token/refresh/`, {
+          const response = await axios.post(joinUrl(API_BASE_URL, 'accounts/token/refresh/'), {
             refresh: refreshToken
           });
           const { access } = response.data;
